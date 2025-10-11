@@ -5,6 +5,8 @@ import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.module.model.ReactModuleInfo
 import com.facebook.react.module.model.ReactModuleInfoProvider
+import com.facebook.react.uimanager.ViewManager
+import com.tuiplayer.shortvideo.TuiplayerShortVideoViewManager
 import java.util.HashMap
 
 class TuiplayerPackage : BaseReactPackage() {
@@ -29,5 +31,11 @@ class TuiplayerPackage : BaseReactPackage() {
       )
       moduleInfos
     }
+  }
+
+  override fun createViewManagers(reactContext: ReactApplicationContext): MutableList<ViewManager<*, *>> {
+    return mutableListOf(
+      TuiplayerShortVideoViewManager()
+    )
   }
 }

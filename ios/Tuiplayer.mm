@@ -1,10 +1,10 @@
 #import "Tuiplayer.h"
+#import "react-native-tuiplayer-Swift.h"
 
 @implementation Tuiplayer
-- (NSNumber *)multiply:(double)a b:(double)b {
-    NSNumber *result = @(a * b);
-
-    return result;
+- (void)initialize:(NSDictionary *)config
+{
+  [TuiplayerModule.shared initializeWith:config];
 }
 
 - (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:

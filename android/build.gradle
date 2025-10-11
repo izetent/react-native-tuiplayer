@@ -58,7 +58,8 @@ android {
     main {
       java.srcDirs += [
         "generated/java",
-        "generated/jni"
+        "generated/jni",
+        "$buildDir/generated/source/codegen/java"
       ]
     }
   }
@@ -67,6 +68,9 @@ android {
 repositories {
   mavenCentral()
   google()
+  maven {
+    url "https://mirrors.tencent-cloud.com/nexus/repository/maven-public/"
+  }
 }
 
 def kotlin_version = getExtOrDefault("kotlinVersion")
@@ -74,4 +78,11 @@ def kotlin_version = getExtOrDefault("kotlinVersion")
 dependencies {
   implementation "com.facebook.react:react-android"
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+  implementation "androidx.appcompat:appcompat:1.6.1"
+  implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.8.7"
+  implementation "androidx.lifecycle:lifecycle-common-java8:2.8.7"
+  implementation "androidx.viewpager2:viewpager2:1.1.0"
+  implementation "com.tencent.liteav:LiteAVSDK_Player:latest.release"
+  implementation files("libs/tuiplayercore-release_2.1.8.75.aar")
+  implementation files("libs/tuiplayershortvideo-release_2.1.8.75.aar")
 }
