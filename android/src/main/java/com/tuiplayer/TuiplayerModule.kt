@@ -3,9 +3,12 @@ package com.tuiplayer
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.UiThreadUtil
+import com.facebook.react.bridge.WritableMap
 import com.facebook.react.module.annotations.ReactModule
 import com.tencent.qcloud.tuiplayer.core.TUIPlayerConfig
 import com.tencent.qcloud.tuiplayer.core.TUIPlayerCore
+import com.facebook.react.bridge.Arguments
+import java.lang.reflect.Modifier
 
 @ReactModule(name = TuiplayerModule.NAME)
 class TuiplayerModule(reactContext: ReactApplicationContext) :
@@ -44,6 +47,11 @@ class TuiplayerModule(reactContext: ReactApplicationContext) :
     const val NAME = "Tuiplayer"
     @Volatile
     private var isInitialized: Boolean = false
+
+    private const val CLASSES_LIST_PLAY_MODE =
+      "com.tencent.qcloud.tuiplayer.shortvideo.common.TUIVideoConst\$ListPlayMode"
+    private const val CLASSES_RESOLUTION_TYPE =
+      "com.tencent.qcloud.tuiplayer.core.api.common.TUIConstants\$TUIResolutionType"
   }
 
   private object NativeLibraryLoader {
@@ -68,6 +76,29 @@ class TuiplayerModule(reactContext: ReactApplicationContext) :
       }
     }
   }
+
+  override fun getShortVideoConstants(): WritableMap {
+    return Arguments.createMap().apply {
+      putMap("listPlayMode", reflectStaticIntConstants(CLASSES_LIST_PLAY_MODE))
+      putMap("resolutionType", reflectStaticIntConstants(CLASSES_RESOLUTION_TYPE))
+    }
+  }
+
+  private fun reflectStaticIntConstants(className: String): WritableMap {
+    val map = Arguments.createMap()
+    try {
+      val clazz = Class.forName(className)
+      clazz.fields
+        .filter { Modifier.isStatic(it.modifiers) && it.type == Int::class.javaPrimitiveType }
+        .forEach { field ->
+          map.putInt(field.name, field.getInt(null))
+        }
+    } catch (_: Throwable) {
+      // Ignore, return empty map
+    }
+    return map
+  }
+
 }
 
 private fun ReadableMap.getStringOrNull(key: String): String? {

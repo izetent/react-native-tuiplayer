@@ -1,4 +1,4 @@
-package tuiplayer.example
+package com.dramango.demo
 
 import android.app.Application
 import com.facebook.react.PackageList

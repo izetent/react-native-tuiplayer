@@ -1,7 +1,11 @@
-import type { HostComponent, ViewProps } from 'react-native';
+import type * as React from 'react';
+import type { ViewProps } from 'react-native';
 // eslint-disable-next-line @react-native/no-deep-imports
 import codegenNativeComponent from 'react-native/Libraries/Utilities/codegenNativeComponent';
+// eslint-disable-next-line @react-native/no-deep-imports
+import codegenNativeCommands from 'react-native/Libraries/Utilities/codegenNativeCommands';
 import type {
+  Double,
   Int32,
   WithDefault,
 } from 'react-native/Libraries/Types/CodegenTypes';
@@ -13,13 +17,124 @@ export type NativeShortVideoSource = Readonly<{
   url?: string;
   coverPictureUrl?: string;
   pSign?: string;
+  extViewType?: Int32;
+  autoPlay?: boolean;
+  videoConfig?: Readonly<{
+    preloadBufferSizeInMB?: Double;
+    preDownloadSize?: Double;
+  }>;
 }>;
+
+export type NativeLayerConfig = Readonly<{
+  vodLayers?: string[];
+  liveLayers?: string[];
+  customLayers?: string[];
+}>;
+
+export type NativePreferredResolution = Readonly<{
+  width: Int32;
+  height: Int32;
+}>;
+
+type NativeEventPayload<T> = Readonly<{
+  index: Int32;
+  total: Int32;
+}> &
+  T;
+
+export type NativeEvent<T> = Readonly<{
+  nativeEvent: NativeEventPayload<T>;
+}>;
+
+export type NativeVodStrategy = Readonly<{
+  preloadCount?: Int32;
+  preDownloadSize?: Double;
+  preLoadBufferSize?: Double;
+  maxBufferSize?: Double;
+  preferredResolution?: NativePreferredResolution;
+  progressInterval?: Int32;
+  renderMode?: Int32;
+  mediaType?: Int32;
+  resumeMode?: string;
+  enableAutoBitrate?: boolean;
+  enableAccurateSeek?: boolean;
+  audioNormalization?: Double;
+  retainPreVod?: boolean;
+  superResolutionMode?: string;
+  retryCount?: Int32;
+  prePlayStrategy?: string;
+}>;
+
+export type NativeLiveStrategy = Readonly<{
+  renderMode?: Int32;
+  retainPreLive?: boolean;
+  prePlayStrategy?: string;
+}>;
+
+export interface TuiplayerShortVideoViewEndReachedEvent {
+  index: Int32;
+  total: Int32;
+}
+
+export interface TuiplayerShortVideoViewPageChangedEvent {
+  index: Int32;
+  total: Int32;
+}
 
 export interface NativeProps extends ViewProps {
   sources?: ReadonlyArray<NativeShortVideoSource>;
   autoPlay?: WithDefault<boolean, true>;
+  initialIndex?: WithDefault<Int32, -1>;
+  paused?: WithDefault<boolean, false>;
+  playMode?: WithDefault<Int32, -1>;
+  userInputEnabled?: WithDefault<boolean, true>;
+  pageScrollMsPerInch?: Double;
+  layers?: NativeLayerConfig;
+  vodStrategy?: NativeVodStrategy;
+  liveStrategy?: NativeLiveStrategy;
+  onEndReached?: (
+    event: NativeEvent<TuiplayerShortVideoViewEndReachedEvent>
+  ) => void;
+  onPageChanged?: (
+    event: NativeEvent<TuiplayerShortVideoViewPageChangedEvent>
+  ) => void;
 }
 
-export default codegenNativeComponent<NativeProps>(
-  'TuiplayerShortVideoView'
-) as HostComponent<NativeProps>;
+const COMPONENT_NAME = 'TuiplayerShortVideoView';
+
+const TuiplayerShortVideoNativeComponent =
+  codegenNativeComponent<NativeProps>(COMPONENT_NAME);
+
+type ComponentType = React.ElementRef<
+  typeof TuiplayerShortVideoNativeComponent
+>;
+
+type NativeCommands = {
+  startPlayIndex: (ref: ComponentType, index: Int32, smooth?: boolean) => void;
+  setPlayMode: (ref: ComponentType, mode: Int32) => void;
+  release: (ref: ComponentType) => void;
+  resume: (ref: ComponentType) => void;
+  switchResolution: (
+    ref: ComponentType,
+    resolution: Double,
+    target: Int32
+  ) => void;
+  pausePreload: (ref: ComponentType) => void;
+  resumePreload: (ref: ComponentType) => void;
+  setUserInputEnabled: (ref: ComponentType, enabled: boolean) => void;
+};
+
+export const Commands = codegenNativeCommands<NativeCommands>({
+  supportedCommands: [
+    'startPlayIndex',
+    'setPlayMode',
+    'release',
+    'resume',
+    'switchResolution',
+    'pausePreload',
+    'resumePreload',
+    'setUserInputEnabled',
+  ],
+});
+
+export default TuiplayerShortVideoNativeComponent;

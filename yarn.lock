@@ -3961,7 +3961,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"arktype@npm:^2.1.15":
+"arktype@npm:2.1.22":
   version: 2.1.22
   resolution: "arktype@npm:2.1.22"
   dependencies:
