@@ -5,6 +5,7 @@ import com.facebook.react.bridge.WritableMap
 import com.facebook.react.uimanager.events.Event
 import com.facebook.react.uimanager.events.RCTEventEmitter
 
+@Suppress("DEPRECATION")
 internal class TuiplayerShortVideoPageChangedEvent(
   surfaceId: Int,
   viewId: Int,
@@ -21,6 +22,7 @@ internal class TuiplayerShortVideoPageChangedEvent(
     }
   }
 
+  @Deprecated("Dispatch via RCTModernEventEmitter")
   override fun dispatch(rctEventEmitter: RCTEventEmitter) {
     rctEventEmitter.receiveEvent(viewTag, EVENT_NAME, getEventData())
   }

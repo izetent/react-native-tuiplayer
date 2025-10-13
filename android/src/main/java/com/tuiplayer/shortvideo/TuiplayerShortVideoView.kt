@@ -1,19 +1,35 @@
+@file:Suppress("DEPRECATION")
+
 package com.tuiplayer.shortvideo
 
+import android.os.Bundle
 import android.util.DisplayMetrics
+import android.util.Log
+import android.view.View
 import android.widget.FrameLayout
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.recyclerview.widget.LinearSmoothScroller
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.ReadableMap
+import com.facebook.react.bridge.WritableArray
+import com.facebook.react.bridge.WritableMap
 import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.UIManagerHelper
-import com.facebook.react.uimanager.events.RCTEventEmitter
+import com.facebook.react.uimanager.common.ViewUtil
+import com.facebook.react.uimanager.events.EventDispatcher
 import com.tencent.qcloud.tuiplayer.core.api.TUIPlayerLiveStrategy
 import com.tencent.qcloud.tuiplayer.core.api.TUIPlayerVodStrategy
 import com.tencent.qcloud.tuiplayer.core.api.common.TUIConstants
+import com.tencent.qcloud.tuiplayer.core.api.model.TUILiveSource
 import com.tencent.qcloud.tuiplayer.core.api.model.TUIPlaySource
+import com.tencent.qcloud.tuiplayer.core.api.model.TUIFileVideoInfo
+import com.tencent.qcloud.tuiplayer.core.api.model.TUIPlayerBitrateItem
+import com.tencent.qcloud.tuiplayer.core.api.model.TUIPlayerVideoConfig
+import com.tencent.qcloud.tuiplayer.core.api.model.TUIVideoSource
+import com.tencent.qcloud.tuiplayer.core.api.ui.player.ITUIVodPlayer
+import com.tencent.qcloud.tuiplayer.core.api.ui.player.TUIVodObserver
 import com.tencent.qcloud.tuiplayer.core.api.ui.view.TUIBaseLayer
 import com.tencent.qcloud.tuiplayer.core.api.ui.view.TUICustomLayer
 import com.tencent.qcloud.tuiplayer.core.api.ui.view.TUILiveLayer
@@ -21,14 +37,17 @@ import com.tencent.qcloud.tuiplayer.core.api.ui.view.TUIVodLayer
 import com.tencent.qcloud.tuiplayer.core.api.ui.view.custom.TUICustomLayerManager
 import com.tencent.qcloud.tuiplayer.core.api.ui.view.live.TUILiveLayerManager
 import com.tencent.qcloud.tuiplayer.core.api.ui.view.vod.TUIVodLayerManager
+import com.tencent.qcloud.tuiplayer.shortvideo.api.data.TUIShortVideoDataManager
 import com.tencent.qcloud.tuiplayer.shortvideo.ui.view.TUIShortVideoListener
 import com.tencent.qcloud.tuiplayer.shortvideo.ui.view.TUIShortVideoView
+import com.tencent.rtmp.TXTrackInfo
 
 internal class TuiplayerShortVideoView(
   private val themedReactContext: ThemedReactContext
-) : FrameLayout(themedReactContext), LifecycleEventListener {
+  ) : FrameLayout(themedReactContext), LifecycleEventListener {
 
   private val shortVideoView = TUIShortVideoView(themedReactContext)
+  private var currentVodPlayer: ITUIVodPlayer? = null
   private var lifecycleOwner: LifecycleOwner? = null
   private val lifecycleObserver = object : DefaultLifecycleObserver {
     override fun onResume(owner: LifecycleOwner) {
@@ -48,7 +67,7 @@ internal class TuiplayerShortVideoView(
   private var autoPlay: Boolean = true
   private var isManuallyPaused = false
   private var isReleased = false
-  private var currentSources: List<TuiplayerShortVideoSource> = emptyList()
+  private var currentSources: MutableList<TuiplayerShortVideoSource> = mutableListOf()
   private var lastEndReachedTotal = -1
   private var lastKnownIndex = -1
   private var pendingInitialIndex: Int? = null
@@ -57,6 +76,111 @@ internal class TuiplayerShortVideoView(
   private var userInputEnabled: Boolean = true
   private var pageScrollMsPerInch: Float? = null
   private var layerConfig: LayerConfig? = null
+
+  private val vodObserver = object : TUIVodObserver {
+    override fun onPlayPrepare() {
+      emitVodEvent("onPlayPrepare", null)
+    }
+
+    override fun onPlayBegin() {
+      emitVodEvent("onPlayBegin", null)
+    }
+
+    override fun onPlayPause() {
+      emitVodEvent("onPlayPause", null)
+    }
+
+    override fun onPlayStop() {
+      emitVodEvent("onPlayStop", null)
+    }
+
+    override fun onPlayLoading() {
+      emitVodEvent("onPlayLoading", null)
+    }
+
+    override fun onPlayLoadingEnd() {
+      emitVodEvent("onPlayLoadingEnd", null)
+    }
+
+    override fun onPlayProgress(current: Long, duration: Long, playable: Long) {
+      val map = Arguments.createMap().apply {
+        putDouble("current", current.toDouble())
+        putDouble("duration", duration.toDouble())
+        putDouble("playable", playable.toDouble())
+      }
+      emitVodEvent("onPlayProgress", map)
+    }
+
+    override fun onSeek(position: Float) {
+      val map = Arguments.createMap().apply {
+        putDouble("position", position.toDouble())
+      }
+      emitVodEvent("onSeek", map)
+    }
+
+    override fun onError(code: Int, message: String?, bundle: Bundle?) {
+      val map = Arguments.createMap().apply {
+        putInt("code", code)
+        if (!message.isNullOrEmpty()) {
+          putString("message", message)
+        }
+        bundle?.toWritableMap()?.let { putMap("extra", it) }
+      }
+      emitVodEvent("onError", map)
+    }
+
+    override fun onRcvFirstIframe() {
+      emitVodEvent("onRcvFirstIframe", null)
+    }
+
+    override fun onRcvAudioTrackInformation(list: List<TXTrackInfo>) {
+      emitVodEvent("onRcvAudioTrackInformation", list.toWritableArray())
+    }
+
+    override fun onRcvTrackInformation(list: List<TXTrackInfo>) {
+      emitVodEvent("onRcvTrackInformation", list.toWritableArray())
+    }
+
+    override fun onRcvSubTitleTrackInformation(list: List<TXTrackInfo>) {
+      emitVodEvent("onRcvSubtitleTrackInformation", list.toWritableArray())
+    }
+
+    override fun onRecFileVideoInfo(info: TUIFileVideoInfo) {
+      emitVodEvent("onRecFileVideoInfo", info.toWritableMap())
+    }
+
+    override fun onResolutionChanged(width: Long, height: Long) {
+      val map = Arguments.createMap().apply {
+        putDouble("width", width.toDouble())
+        putDouble("height", height.toDouble())
+      }
+      emitVodEvent("onResolutionChanged", map)
+    }
+
+    override fun onPlayEvent(player: ITUIVodPlayer, event: Int, bundle: Bundle?) {
+      val map = Arguments.createMap().apply {
+        putInt("event", event)
+        bundle?.toWritableMap()?.let { putMap("extra", it) }
+      }
+      emitVodEvent("onPlayEvent", map)
+    }
+
+    override fun onFirstFrameRendered() {
+      emitVodEvent("onFirstFrameRendered", null)
+    }
+
+    override fun onPlayEnd() {
+      emitVodEvent("onPlayEnd", null)
+    }
+
+    override fun onRetryConnect(times: Int, bundle: Bundle?) {
+      val map = Arguments.createMap().apply {
+        putInt("count", times)
+        bundle?.toWritableMap()?.let { putMap("extra", it) }
+      }
+      emitVodEvent("onRetryConnect", map)
+    }
+  }
 
   private val shortVideoListener = object : TUIShortVideoListener() {
     override fun onCreateVodLayer(
@@ -71,6 +195,13 @@ internal class TuiplayerShortVideoView(
       position: Int
     ) {
       applyLiveLayers(layerManager)
+    }
+
+    override fun onVodPlayerReady(player: ITUIVodPlayer, model: TUIVideoSource) {
+      super.onVodPlayerReady(player, model)
+      detachCurrentVodPlayer()
+      currentVodPlayer = player
+      player.addPlayerObserver(vodObserver)
     }
 
     override fun onCreateCustomLayer(
@@ -171,7 +302,7 @@ internal class TuiplayerShortVideoView(
 
   fun setSources(sources: List<TuiplayerShortVideoSource>) {
     isReleased = false
-    val previous = currentSources
+    val previous = currentSources.toList()
     val shouldAppend = shouldAppend(previous, sources)
     if (shouldAppend) {
       val appended = sources.subList(previous.size, sources.size)
@@ -180,6 +311,7 @@ internal class TuiplayerShortVideoView(
         shortVideoView.appendModels(appendedModels)
       }
     } else {
+      detachCurrentVodPlayer()
       val models = sources.mapNotNull { it.toPlaySource() }
       shortVideoView.setModels(models)
       lastEndReachedTotal = -1
@@ -188,18 +320,15 @@ internal class TuiplayerShortVideoView(
         if (!maybeApplyInitialIndex()) {
           val targetIndex =
             if (lastKnownIndex in models.indices) lastKnownIndex else 0
-          shortVideoView.startPlayIndex(targetIndex)
+          scheduleStartAtIndex(targetIndex)
           lastKnownIndex = targetIndex
-          if (autoPlay && !isManuallyPaused) {
-            shortVideoView.resume()
-          }
           dispatchPageChanged(targetIndex, models.size)
         }
       } else {
         lastKnownIndex = -1
       }
     }
-    currentSources = sources
+    currentSources = sources.toMutableList()
     maybeApplyInitialIndex()
     if (lastKnownIndex >= currentSources.size) {
       lastKnownIndex = currentSources.lastIndex
@@ -217,7 +346,7 @@ internal class TuiplayerShortVideoView(
       return
     }
     shortVideoView.appendModels(models)
-    currentSources = currentSources + sources
+    currentSources.addAll(sources)
   }
 
   override fun onAttachedToWindow() {
@@ -253,6 +382,7 @@ internal class TuiplayerShortVideoView(
     isReleased = true
     lifecycleOwner?.lifecycle?.removeObserver(lifecycleObserver)
     lifecycleOwner = null
+    detachCurrentVodPlayer()
     shortVideoView.release()
     themedReactContext.removeLifecycleEventListener(this)
   }
@@ -307,21 +437,7 @@ internal class TuiplayerShortVideoView(
   }
 
   private fun dispatchPageChanged(index: Int, total: Int) {
-    val eventDispatcher = UIManagerHelper.getEventDispatcher(themedReactContext, id)
-    if (eventDispatcher != null) {
-      val surfaceId = UIManagerHelper.getSurfaceId(themedReactContext)
-      eventDispatcher.dispatchEvent(
-        TuiplayerShortVideoPageChangedEvent(surfaceId, id, index, total)
-      )
-    } else {
-      val params = com.facebook.react.bridge.Arguments.createMap().apply {
-        putInt("index", index)
-        putInt("total", total)
-      }
-      themedReactContext
-        .getJSModule(RCTEventEmitter::class.java)
-        .receiveEvent(id, TuiplayerShortVideoPageChangedEvent.EVENT_NAME, params)
-    }
+    dispatchPageChangedInternal(index, total, 0)
   }
 
   private fun dispatchEndReached(index: Int, total: Int) {
@@ -332,25 +448,12 @@ internal class TuiplayerShortVideoView(
       return
     }
     lastEndReachedTotal = total
-    val eventDispatcher = UIManagerHelper.getEventDispatcher(themedReactContext, id)
-    if (eventDispatcher != null) {
-      val surfaceId = UIManagerHelper.getSurfaceId(themedReactContext)
-      eventDispatcher.dispatchEvent(
-        TuiplayerShortVideoEndReachedEvent(surfaceId, id, index, total)
-      )
-    } else {
-      val params = com.facebook.react.bridge.Arguments.createMap().apply {
-        putInt("index", index)
-        putInt("total", total)
-      }
-      themedReactContext
-        .getJSModule(RCTEventEmitter::class.java)
-        .receiveEvent(id, TuiplayerShortVideoEndReachedEvent.EVENT_NAME, params)
-    }
+    dispatchEndReachedInternal(index, total, 0)
   }
 
   companion object {
     private const val END_REACHED_THRESHOLD = 2
+    private const val MAX_EVENT_RETRY = 5
   }
 
   fun commandStartPlayIndex(index: Int, smooth: Boolean) {
@@ -387,6 +490,271 @@ internal class TuiplayerShortVideoView(
     setUserInputEnabled(enabled)
   }
 
+  fun handleVodPlayerCommand(command: String, options: ReadableMap?): Any? {
+    val player = currentVodPlayer
+      ?: throw IllegalStateException("VOD player is not ready yet")
+    return when (command) {
+      "startPlay" -> {
+        val modelMap = options?.getMapOrNull("source")
+        val source = modelMap?.toShortVideoSource()
+        val model = source?.toPlaySource() as? TUIVideoSource
+          ?: throw IllegalArgumentException("source is required for startPlay")
+        player.startPlay(model)
+        null
+      }
+      "resumePlay" -> {
+        player.resumePlay()
+        null
+      }
+      "pause" -> {
+        player.pause()
+        null
+      }
+      "stop" -> {
+        val clearLast = options?.getBooleanOrNull("clearLastImage")
+        if (clearLast != null) {
+          player.stop(clearLast)
+        } else {
+          player.stop()
+        }
+        null
+      }
+      "seekTo" -> {
+        val time = options?.getDoubleOrNull("time")?.toFloat()
+          ?: throw IllegalArgumentException("time is required for seekTo")
+        player.seekTo(time)
+        null
+      }
+      "isPlaying" -> player.isPlaying()
+      "setLoop" -> {
+        val loop = options?.getBooleanOrNull("loop")
+          ?: throw IllegalArgumentException("loop is required for setLoop")
+        player.setLoop(loop)
+        null
+      }
+      "isLoop" -> player.isLoop()
+      "setRate" -> {
+        val rate = options?.getDoubleOrNull("rate")?.toFloat()
+          ?: throw IllegalArgumentException("rate is required for setRate")
+        player.setRate(rate)
+        null
+      }
+      "getDuration" -> player.duration.toDouble()
+      "getCurrentPlaybackTime" -> player.currentPlaybackTime.toDouble()
+      "getPlayableDuration" -> player.playableDuration.toDouble()
+      "setMute" -> {
+        val mute = options?.getBooleanOrNull("mute")
+          ?: throw IllegalArgumentException("mute is required for setMute")
+        player.setMute(mute)
+        null
+      }
+      "setAudioPlayoutVolume" -> {
+        val volume = options?.getIntOrNull("volume")
+          ?: throw IllegalArgumentException("volume is required for setAudioPlayoutVolume")
+        player.setAudioPlayoutVolume(volume)
+        null
+      }
+      "setMirror" -> {
+        val mirror = options?.getBooleanOrNull("mirror")
+          ?: throw IllegalArgumentException("mirror is required for setMirror")
+        player.setMirror(mirror)
+        null
+      }
+      "setBitrateIndex" -> {
+        val index = options?.getIntOrNull("index")
+          ?: throw IllegalArgumentException("index is required for setBitrateIndex")
+        player.setBitrateIndex(index)
+        null
+      }
+      "getBitrateIndex" -> player.bitrateIndex
+      "getSupportResolution" -> player.supportResolution?.toWritableArray()
+      "setRenderRotation" -> {
+        val rotation = options?.getIntOrNull("rotation")
+          ?: throw IllegalArgumentException("rotation is required for setRenderRotation")
+        player.setRenderRotation(rotation)
+        null
+      }
+      "setRenderMode" -> {
+        val mode = options?.getIntOrNull("mode")
+          ?: throw IllegalArgumentException("mode is required for setRenderMode")
+        player.setRenderMode(mode)
+        null
+      }
+      "getWidth" -> player.width
+      "getHeight" -> player.height
+      "switchResolution" -> {
+        val resolution = options?.getDoubleOrNull("resolution")
+          ?: throw IllegalArgumentException("resolution is required for switchResolution")
+        player.switchResolution(resolution.toLong())
+        null
+      }
+      "setAudioNormalization" -> {
+        val value = options?.getDoubleOrNull("value")?.toFloat()
+          ?: throw IllegalArgumentException("value is required for setAudioNormalization")
+        player.setAudioNormalization(value)
+        null
+      }
+      "enableHardwareDecode" -> {
+        val enable = options?.getBooleanOrNull("enable")
+          ?: throw IllegalArgumentException("enable is required for enableHardwareDecode")
+        player.enableHardwareDecode(enable)
+      }
+      else -> throw IllegalArgumentException("Unsupported VOD command: $command")
+    }
+  }
+
+  fun addData(source: TuiplayerShortVideoSource, index: Int) {
+    val manager = dataManagerOrNull() ?: return
+    val model = source.toPlaySource() ?: return
+    val target = index.coerceIn(0, currentSources.size)
+    manager.addData(model, target)
+    currentSources.add(target, source)
+  }
+
+  fun addRangeData(sources: List<TuiplayerShortVideoSource>, startIndex: Int) {
+    val manager = dataManagerOrNull() ?: return
+    if (sources.isEmpty()) {
+      return
+    }
+    val models = sources.mapNotNull { it.toPlaySource() }
+    if (models.isEmpty()) {
+      return
+    }
+    val target = startIndex.coerceIn(0, currentSources.size)
+    manager.addRangeData(models, target)
+    currentSources.addAll(target, sources)
+  }
+
+  fun replaceData(source: TuiplayerShortVideoSource, index: Int) {
+    val manager = dataManagerOrNull() ?: return
+    if (index !in currentSources.indices) {
+      return
+    }
+    val model = source.toPlaySource() ?: return
+    manager.replaceData(model, index)
+    currentSources[index] = source
+  }
+
+  fun replaceRangeData(sources: List<TuiplayerShortVideoSource>, startIndex: Int) {
+    val manager = dataManagerOrNull() ?: return
+    if (sources.isEmpty()) {
+      return
+    }
+    val models = sources.mapNotNull { it.toPlaySource() }
+    if (models.isEmpty()) {
+      return
+    }
+    val start = startIndex.coerceIn(0, currentSources.size)
+    val end = (start + sources.size).coerceAtMost(currentSources.size)
+    if (end - start != sources.size) {
+      return
+    }
+    manager.replaceRangeData(models, start)
+    for (offset in sources.indices) {
+      currentSources[start + offset] = sources[offset]
+    }
+  }
+
+  fun removeData(index: Int) {
+    val manager = dataManagerOrNull() ?: return
+    if (index !in currentSources.indices) {
+      return
+    }
+    manager.removeData(index)
+    currentSources.removeAt(index)
+    if (lastKnownIndex >= currentSources.size) {
+      lastKnownIndex = currentSources.lastIndex
+    }
+  }
+
+  fun removeRangeData(index: Int, count: Int) {
+    val manager = dataManagerOrNull() ?: return
+    if (count <= 0 || currentSources.isEmpty()) {
+      return
+    }
+    val start = index.coerceIn(0, currentSources.lastIndex)
+    val endExclusive = (start + count).coerceAtMost(currentSources.size)
+    if (endExclusive <= start) {
+      return
+    }
+    val actualCount = endExclusive - start
+    manager.removeRangeData(start, actualCount)
+    currentSources.subList(start, endExclusive).clear()
+    if (lastKnownIndex >= currentSources.size) {
+      lastKnownIndex = currentSources.lastIndex
+    }
+  }
+
+  fun removeDataByIndexes(indexes: List<Int>) {
+    val manager = dataManagerOrNull() ?: return
+    if (indexes.isEmpty()) {
+      return
+    }
+    val normalized = indexes.filter { it in currentSources.indices }.sorted()
+    if (normalized.isEmpty()) {
+      return
+    }
+    manager.removeDataByIndex(normalized)
+    normalized.asReversed().forEach { currentSources.removeAt(it) }
+    if (lastKnownIndex >= currentSources.size) {
+      lastKnownIndex = currentSources.lastIndex
+    }
+  }
+
+  fun getSourceSnapshotAt(index: Int): WritableMap? {
+    if (index !in currentSources.indices) {
+      return null
+    }
+    return currentSources[index].toSnapshotMap()
+  }
+
+  fun getDataCount(): Int {
+    return currentSources.size
+  }
+
+  private fun dataManagerOrNull(): TUIShortVideoDataManager? {
+    return shortVideoView.dataManager
+  }
+
+  private fun detachCurrentVodPlayer() {
+    currentVodPlayer?.removePlayerObserver(vodObserver)
+    currentVodPlayer = null
+  }
+
+  private fun emitVodEvent(type: String, payload: WritableMap?) {
+    if (isReleased) {
+      return
+    }
+    if (id == View.NO_ID) {
+      shortVideoView.post { emitVodEvent(type, payload) }
+      return
+    }
+    val dispatcher = resolveEventDispatcher() ?: return
+    dispatcher.dispatchEvent(
+      TuiplayerShortVideoVodEvent(resolveSurfaceId(), id, type, payload)
+    )
+  }
+
+  fun getCurrentIndex(): Int? {
+    val dataManagerIndex = shortVideoView.dataManager?.currentIndex
+    if (dataManagerIndex != null && dataManagerIndex >= 0) {
+      return dataManagerIndex
+    }
+    if (lastKnownIndex in currentSources.indices) {
+      return lastKnownIndex
+    }
+    return null
+  }
+
+  fun getCurrentSourceSnapshot(): WritableMap? {
+    val index = getCurrentIndex() ?: return null
+    if (index !in currentSources.indices) {
+      val model = shortVideoView.currentModel ?: return null
+      return model.toWritableMap()
+    }
+    return currentSources[index].toSnapshotMap()
+  }
+
   private fun applyPageScroller() {
     val ms = pageScrollMsPerInch
     if (ms == null || ms <= 0f) {
@@ -404,16 +772,100 @@ internal class TuiplayerShortVideoView(
     val total = currentSources.size
     val target = pendingInitialIndex?.takeIf { total > 0 }?.coerceIn(0, total - 1)
     if (target != null) {
-      shortVideoView.startPlayIndex(target)
+      scheduleStartAtIndex(target)
       lastKnownIndex = target
-      if (autoPlay && !isManuallyPaused) {
-        shortVideoView.resume()
-      }
       dispatchPageChanged(target, total)
       pendingInitialIndex = null
       return true
     }
     return false
+  }
+
+  private fun scheduleStartAtIndex(index: Int) {
+    shortVideoView.post {
+      if (isReleased) {
+        return@post
+      }
+      shortVideoView.startPlayIndex(index)
+      if (autoPlay && !isManuallyPaused) {
+        shortVideoView.resume()
+      }
+    }
+  }
+
+  private fun dispatchPageChangedInternal(index: Int, total: Int, retry: Int) {
+    if (id == View.NO_ID) {
+      if (retry >= MAX_EVENT_RETRY) {
+        Log.w("TuiplayerShortVideoView", "Abandon pageChanged event, view id not ready")
+        return
+      }
+      shortVideoView.post { dispatchPageChangedInternal(index, total, retry + 1) }
+      return
+    }
+    val dispatcher = resolveEventDispatcher()
+    if (dispatcher != null) {
+      emitPageChanged(dispatcher, index, total)
+    } else if (retry < MAX_EVENT_RETRY) {
+      shortVideoView.post { dispatchPageChangedInternal(index, total, retry + 1) }
+    } else {
+      Log.w(
+        "TuiplayerShortVideoView",
+        "Failed to dispatch pageChanged after retries (surfaceId=${resolveSurfaceId()}, tag=$id)"
+      )
+    }
+  }
+
+  private fun dispatchEndReachedInternal(index: Int, total: Int, retry: Int) {
+    if (id == View.NO_ID) {
+      if (retry >= MAX_EVENT_RETRY) {
+        Log.w("TuiplayerShortVideoView", "Abandon endReached event, view id not ready")
+        return
+      }
+      shortVideoView.post { dispatchEndReachedInternal(index, total, retry + 1) }
+      return
+    }
+    val dispatcher = resolveEventDispatcher()
+    if (dispatcher != null) {
+      emitEndReached(dispatcher, index, total)
+    } else if (retry < MAX_EVENT_RETRY) {
+      shortVideoView.post { dispatchEndReachedInternal(index, total, retry + 1) }
+    } else {
+      Log.w(
+        "TuiplayerShortVideoView",
+        "Failed to dispatch endReached after retries (surfaceId=${resolveSurfaceId()}, tag=$id)"
+      )
+    }
+  }
+
+  private fun resolveEventDispatcher(): EventDispatcher? {
+    val direct = UIManagerHelper.getEventDispatcherForReactTag(themedReactContext, id)
+    if (direct != null) {
+      return direct
+    }
+    val uiManagerType = ViewUtil.getUIManagerType(id)
+    return UIManagerHelper.getEventDispatcher(themedReactContext, uiManagerType)
+  }
+
+  private fun emitPageChanged(dispatcher: EventDispatcher, index: Int, total: Int) {
+    val surfaceId = resolveSurfaceId()
+    dispatcher.dispatchEvent(
+      TuiplayerShortVideoPageChangedEvent(surfaceId, id, index, total)
+    )
+  }
+
+  private fun emitEndReached(dispatcher: EventDispatcher, index: Int, total: Int) {
+    val surfaceId = resolveSurfaceId()
+    dispatcher.dispatchEvent(
+      TuiplayerShortVideoEndReachedEvent(surfaceId, id, index, total)
+    )
+  }
+
+  private fun resolveSurfaceId(): Int {
+    val fromView = UIManagerHelper.getSurfaceId(shortVideoView)
+    if (fromView != -1) {
+      return fromView
+    }
+    return UIManagerHelper.getSurfaceId(themedReactContext)
   }
 
   private fun buildVodStrategy(config: ReadableMap): TUIPlayerVodStrategy {
@@ -566,4 +1018,217 @@ private fun ReadableMap.getStringOrNull(key: String): String? {
 
 private fun ReadableMap.getMapOrNull(key: String): ReadableMap? {
   return if (hasKey(key) && !isNull(key)) getMap(key) else null
+}
+
+private fun TUIPlaySource.toWritableMap(): WritableMap {
+  val map = Arguments.createMap()
+  map.putInt("extViewType", extViewType)
+  when (this) {
+    is TUIVideoSource -> {
+      val fileId = getFileId()
+      val url = getVideoURL()
+      val appId = getAppId()
+      val cover = getCoverPictureUrl()
+      val pSign = getPSign()
+      val type = when {
+        !fileId.isNullOrBlank() -> "fileId"
+        !url.isNullOrBlank() -> "url"
+        else -> null
+      }
+      type?.let { map.putString("type", it) }
+      if (appId > 0) {
+        map.putInt("appId", appId)
+      }
+      map.putStringIfNotBlank("fileId", fileId)
+      map.putStringIfNotBlank("url", url)
+      map.putStringIfNotBlank("coverPictureUrl", cover)
+      map.putStringIfNotBlank("pSign", pSign)
+      map.putBoolean("autoPlay", isAutoPlay)
+      if (duration > 0) {
+        map.putInt("duration", duration)
+      }
+      val configMap = getVideoConfig()?.toWritableMapOrNull()
+      if (configMap != null) {
+        map.putMap("videoConfig", configMap)
+      }
+    }
+    is TUILiveSource -> {
+      map.putString("type", "url")
+      map.putStringIfNotBlank("url", getUrl())
+      map.putStringIfNotBlank("coverPictureUrl", getCoverPictureUrl())
+      map.putBoolean("autoPlay", isAutoPlay)
+    }
+    else -> {
+      // No-op for other TUIPlaySource types.
+    }
+  }
+  return map
+}
+
+private fun TUIPlayerVideoConfig.toWritableMapOrNull(): WritableMap? {
+  val map = Arguments.createMap()
+  var hasValue = false
+  val preloadBuffer = preloadBufferSizeInMB
+  if (preloadBuffer > 0f) {
+    map.putDouble("preloadBufferSizeInMB", preloadBuffer.toDouble())
+    hasValue = true
+  }
+  val preDownloadBytes = preDownloadSize
+  if (preDownloadBytes > 0L) {
+    val mb = preDownloadBytes.toDouble() / (1024.0 * 1024.0)
+    map.putDouble("preDownloadSize", mb)
+    hasValue = true
+  }
+  return if (hasValue) map else null
+}
+
+private fun WritableMap.putStringIfNotBlank(key: String, value: String?) {
+  if (!value.isNullOrBlank()) {
+    putString(key, value)
+  }
+}
+
+private fun Bundle.toWritableMap(): WritableMap {
+  val map = Arguments.createMap()
+  val iterator = keySet().iterator()
+  while (iterator.hasNext()) {
+    val key = iterator.next()
+    when (val value = get(key)) {
+      null -> map.putNull(key)
+      is Boolean -> map.putBoolean(key, value)
+      is Int -> map.putInt(key, value)
+      is Long -> map.putDouble(key, value.toDouble())
+      is Double -> map.putDouble(key, value)
+      is Float -> map.putDouble(key, value.toDouble())
+      is String -> map.putString(key, value)
+      is Bundle -> map.putMap(key, value.toWritableMap())
+      is IntArray -> {
+        val array = Arguments.createArray()
+        value.forEach { array.pushInt(it) }
+        map.putArray(key, array)
+      }
+      is DoubleArray -> {
+        val array = Arguments.createArray()
+        value.forEach { array.pushDouble(it) }
+        map.putArray(key, array)
+      }
+      is Array<*> -> {
+        val array = Arguments.createArray()
+        value.forEach { item ->
+          item?.let { array.pushString(it.toString()) }
+        }
+        map.putArray(key, array)
+      }
+      else -> map.putString(key, value.toString())
+    }
+  }
+  return map
+}
+
+private fun List<TXTrackInfo>?.toWritableArray(): WritableMap {
+  val map = Arguments.createMap()
+  val array = Arguments.createArray()
+  this?.forEach { info ->
+    val itemMap = Arguments.createMap()
+    itemMap.putString("description", info.toString())
+    array.pushMap(itemMap)
+  }
+  map.putArray("tracks", array)
+  map.putInt("count", this?.size ?: 0)
+  return map
+}
+
+private fun TUIFileVideoInfo.toWritableMap(): WritableMap {
+  val map = Arguments.createMap()
+  map.putStringIfNotBlank("url", url)
+  map.putStringIfNotBlank("coverUrl", coverUrl)
+  map.putStringIfNotBlank("playName", playName)
+  map.putStringIfNotBlank("playDescription", playDescription)
+  map.putInt("duration", duration)
+  map.putStringIfNotBlank("drmType", drmType)
+  return map
+}
+
+private fun ReadableMap.toShortVideoSource(): TuiplayerShortVideoSource? {
+  val type = when (getStringOrNull("type")?.lowercase()) {
+    "url" -> TuiplayerShortVideoSource.SourceType.URL
+    else -> TuiplayerShortVideoSource.SourceType.FILE_ID
+  }
+  val appId = getDoubleOrNull("appId")?.toInt()
+  val fileId = getStringOrNull("fileId")
+  val url = getStringOrNull("url")
+  val cover = getStringOrNull("coverPictureUrl")
+  val pSign = getStringOrNull("pSign")
+  val extViewType = getIntOrNull("extViewType")
+  val autoPlay = getBooleanOrNull("autoPlay")
+  val videoConfigMap = getMapOrNull("videoConfig")
+  val videoConfig = if (videoConfigMap != null) {
+    TuiplayerShortVideoSource.VideoConfig(
+      preloadBufferSizeInMB = videoConfigMap.getDoubleOrNull("preloadBufferSizeInMB")?.toFloat(),
+      preDownloadSizeInMB = videoConfigMap.getDoubleOrNull("preDownloadSize")
+    )
+  } else {
+    null
+  }
+  if (type == TuiplayerShortVideoSource.SourceType.FILE_ID && fileId.isNullOrBlank()) {
+    return null
+  }
+  if (type == TuiplayerShortVideoSource.SourceType.URL && url.isNullOrBlank()) {
+    return null
+  }
+  return TuiplayerShortVideoSource(
+    type = type,
+    appId = appId,
+    fileId = fileId,
+    url = url,
+    coverPictureUrl = cover,
+    pSign = pSign,
+    extViewType = extViewType,
+    autoPlay = autoPlay,
+    videoConfig = videoConfig
+  )
+}
+
+private fun List<TUIPlayerBitrateItem>.toWritableArray(): WritableArray {
+  val array = Arguments.createArray()
+  for (item in this) {
+    val map = Arguments.createMap()
+    map.putInt("index", item.index)
+    map.putInt("width", item.width)
+    map.putInt("height", item.height)
+    map.putInt("bitrate", item.bitrate)
+    array.pushMap(map)
+  }
+  return array
+}
+
+private fun TuiplayerShortVideoSource.toSnapshotMap(): WritableMap {
+  val map = Arguments.createMap()
+  when (type) {
+    TuiplayerShortVideoSource.SourceType.FILE_ID -> map.putString("type", "fileId")
+    TuiplayerShortVideoSource.SourceType.URL -> map.putString("type", "url")
+  }
+  appId?.let { map.putInt("appId", it) }
+  map.putStringIfNotBlank("fileId", fileId)
+  map.putStringIfNotBlank("url", url)
+  map.putStringIfNotBlank("coverPictureUrl", coverPictureUrl)
+  map.putStringIfNotBlank("pSign", pSign)
+  extViewType?.let { map.putInt("extViewType", it) }
+  autoPlay?.let { map.putBoolean("autoPlay", it) }
+  videoConfig?.let { config ->
+    val configMap = Arguments.createMap()
+    var hasValue = false
+    config.preloadBufferSizeInMB?.let {
+      configMap.putDouble("preloadBufferSizeInMB", it.toDouble())
+      hasValue = true
+    }
+    config.preDownloadSizeInMB?.let {
+      configMap.putDouble("preDownloadSize", it)
+      hasValue = true
+    }
+    if (hasValue) {
+      map.putMap("videoConfig", configMap)
+    }
+  }
+  return map
 }

@@ -126,3 +126,8 @@ export type TuiplayerLayerConfig = {
 
 export type TuiplayerVodStrategyOptions = VodStrategyOptions;
 export type TuiplayerLiveStrategyOptions = LiveStrategyOptions;
+
+export type {
+  ShortVideoSourcePayload as ShortVideoSourceSnapshot,
+  CurrentShortVideoInfo,
+} from './NativeTuiplayer';

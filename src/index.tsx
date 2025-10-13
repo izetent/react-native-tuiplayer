@@ -1,13 +1,22 @@
 import {
   type ElementRef,
   forwardRef,
+  useCallback,
   useImperativeHandle,
   useMemo,
   useRef,
 } from 'react';
-import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  StyleSheet,
+  type StyleProp,
+  type ViewStyle,
+  findNodeHandle,
+} from 'react-native';
 
-import NativeTuiplayer from './NativeTuiplayer';
+import NativeTuiplayer, {
+  type CurrentShortVideoInfo,
+  type ShortVideoSourcePayload,
+} from './NativeTuiplayer';
 import TuiplayerShortVideoNativeComponent, {
   type NativeShortVideoSource,
   type NativeVodStrategy,
@@ -43,6 +52,108 @@ const FALLBACK_RESOLUTION_TYPE = Object.freeze({
   CURRENT: 1,
 } as const);
 
+type VodPlayerTargetOptions = {
+  index?: number;
+};
+
+type VodSwitchResolutionOptions = VodPlayerTargetOptions & {
+  target?: number;
+};
+
+type VodPlayerCommand =
+  | 'startPlay'
+  | 'resumePlay'
+  | 'pause'
+  | 'stop'
+  | 'seekTo'
+  | 'isPlaying'
+  | 'setLoop'
+  | 'isLoop'
+  | 'setRate'
+  | 'getDuration'
+  | 'getCurrentPlaybackTime'
+  | 'getPlayableDuration'
+  | 'setMute'
+  | 'setAudioPlayoutVolume'
+  | 'setMirror'
+  | 'setBitrateIndex'
+  | 'getBitrateIndex'
+  | 'getSupportResolution'
+  | 'setRenderRotation'
+  | 'setRenderMode'
+  | 'getWidth'
+  | 'getHeight'
+  | 'switchResolution'
+  | 'setAudioNormalization'
+  | 'enableHardwareDecode';
+
+type VodPlayerCommandOptions = Record<string, unknown>;
+
+export type VodPlayerSupportResolution = Readonly<{
+  index: number;
+  width: number;
+  height: number;
+  bitrate: number;
+}>;
+
+export type TuiplayerVodPlayerHandle = {
+  startPlay: (
+    source: ShortVideoSource,
+    options?: VodPlayerTargetOptions
+  ) => Promise<void>;
+  resume: (options?: VodPlayerTargetOptions) => Promise<void>;
+  pause: (options?: VodPlayerTargetOptions) => Promise<void>;
+  stop: (
+    options?: VodPlayerTargetOptions & { clearLastImage?: boolean }
+  ) => Promise<void>;
+  seekTo: (time: number, options?: VodPlayerTargetOptions) => Promise<void>;
+  isPlaying: (options?: VodPlayerTargetOptions) => Promise<boolean>;
+  setLoop: (loop: boolean, options?: VodPlayerTargetOptions) => Promise<void>;
+  isLoop: (options?: VodPlayerTargetOptions) => Promise<boolean>;
+  setRate: (rate: number, options?: VodPlayerTargetOptions) => Promise<void>;
+  getDuration: (options?: VodPlayerTargetOptions) => Promise<number>;
+  getCurrentPlaybackTime: (options?: VodPlayerTargetOptions) => Promise<number>;
+  getPlayableDuration: (options?: VodPlayerTargetOptions) => Promise<number>;
+  setMute: (mute: boolean, options?: VodPlayerTargetOptions) => Promise<void>;
+  setAudioPlayoutVolume: (
+    volume: number,
+    options?: VodPlayerTargetOptions
+  ) => Promise<void>;
+  setMirror: (
+    mirror: boolean,
+    options?: VodPlayerTargetOptions
+  ) => Promise<void>;
+  setBitrateIndex: (
+    index: number,
+    options?: VodPlayerTargetOptions
+  ) => Promise<void>;
+  getBitrateIndex: (options?: VodPlayerTargetOptions) => Promise<number>;
+  getSupportResolution: (
+    options?: VodPlayerTargetOptions
+  ) => Promise<VodPlayerSupportResolution[]>;
+  setRenderRotation: (
+    rotation: number,
+    options?: VodPlayerTargetOptions
+  ) => Promise<void>;
+  setRenderMode: (
+    mode: number,
+    options?: VodPlayerTargetOptions
+  ) => Promise<void>;
+  getWidth: (options?: VodPlayerTargetOptions) => Promise<number>;
+  getHeight: (options?: VodPlayerTargetOptions) => Promise<number>;
+  switchResolution: (
+    resolution: number,
+    options?: VodSwitchResolutionOptions & VodPlayerTargetOptions
+  ) => Promise<boolean | void>;
+  setAudioNormalization: (
+    value: number,
+    options?: VodPlayerTargetOptions
+  ) => Promise<void>;
+  enableHardwareDecode: (
+    enable: boolean,
+    options?: VodPlayerTargetOptions
+  ) => Promise<boolean | void>;
+};
 /**
  * TUIVideoConst.ListPlayMode 对应的播放模式常量。
  */
@@ -94,6 +205,56 @@ export type TuiplayerShortVideoViewHandle = {
    * 运行时启用或禁用用户滑动手势。
    */
   setUserInputEnabled: (enabled: boolean) => void;
+  /**
+   * 获取当前正在播放的短视频信息。
+   */
+  getCurrentSource: () => Promise<CurrentShortVideoInfo | null>;
+  /**
+   * 获取当前列表内的数据条数。
+   */
+  getDataCount: () => Promise<number>;
+  /**
+   * 按索引获取列表中的数据快照。
+   */
+  getDataByIndex: (index: number) => Promise<ShortVideoSourcePayload | null>;
+  /**
+   * 移除指定位置的数据。
+   */
+  removeData: (index: number) => Promise<void>;
+  /**
+   * 移除一段区间的数据。
+   */
+  removeRangeData: (index: number, count: number) => Promise<void>;
+  /**
+   * 按索引集合批量移除数据。
+   */
+  removeDataByIndexes: (indexes: number[]) => Promise<void>;
+  /**
+   * 在指定位置插入一条数据。
+   */
+  addData: (source: ShortVideoSource, index?: number) => Promise<void>;
+  /**
+   * 在指定位置插入一组数据。
+   */
+  addRangeData: (
+    sources: ShortVideoSource[],
+    startIndex?: number
+  ) => Promise<void>;
+  /**
+   * 替换指定位置的数据。
+   */
+  replaceData: (source: ShortVideoSource, index: number) => Promise<void>;
+  /**
+   * 替换指定区间的数据。
+   */
+  replaceRangeData: (
+    sources: ShortVideoSource[],
+    startIndex: number
+  ) => Promise<void>;
+  /**
+   * VOD 播放器控制接口。
+   */
+  vodPlayer: TuiplayerVodPlayerHandle;
 };
 
 export type TuiplayerShortVideoViewProps = {
@@ -132,6 +293,12 @@ export type TuiplayerShortVideoViewProps = {
       total: number;
     };
   }) => void;
+  onVodEvent?: (event: {
+    nativeEvent: {
+      type: string;
+      payload?: Record<string, unknown>;
+    };
+  }) => void;
 };
 
 export const TuiplayerShortVideoView = forwardRef<
@@ -153,14 +320,15 @@ export const TuiplayerShortVideoView = forwardRef<
       liveStrategy,
       onPageChanged,
       onEndReached,
+      onVodEvent,
     },
     ref
   ) => {
     const nativeRef =
       useRef<ElementRef<typeof TuiplayerShortVideoNativeComponent>>(null);
 
-    const normalizedSources = useMemo<NativeShortVideoSource[]>(() => {
-      return sources.map((item) => ({
+    const buildSourcePayload = useCallback(
+      (item: ShortVideoSource): ShortVideoSourcePayload => ({
         type: item.type ?? 'fileId',
         appId: item.appId,
         fileId: item.fileId,
@@ -170,8 +338,19 @@ export const TuiplayerShortVideoView = forwardRef<
         extViewType: item.extViewType,
         autoPlay: item.autoPlay,
         videoConfig: item.videoConfig,
-      }));
-    }, [sources]);
+      }),
+      []
+    );
+
+    const toNativeSource = useCallback(
+      (item: ShortVideoSource): NativeShortVideoSource =>
+        buildSourcePayload(item) as NativeShortVideoSource,
+      [buildSourcePayload]
+    );
+
+    const normalizedSources = useMemo<NativeShortVideoSource[]>(() => {
+      return sources.map(toNativeSource);
+    }, [sources, toNativeSource]);
 
     const normalizedVodStrategy = useMemo<NativeVodStrategy | undefined>(() => {
       if (!vodStrategy) {
@@ -219,6 +398,147 @@ export const TuiplayerShortVideoView = forwardRef<
       } satisfies NativeLiveStrategy;
     }, [liveStrategy]);
 
+    const serializeVodOptions = useCallback(
+      (
+        _command: VodPlayerCommand,
+        options?: VodPlayerCommandOptions
+      ): Record<string, unknown> | undefined => {
+        if (options == null) {
+          return undefined;
+        }
+        const payload: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(options)) {
+          if (value == null) {
+            continue;
+          }
+          if (key === 'source' && typeof value === 'object') {
+            payload.source = buildSourcePayload(value as ShortVideoSource);
+          } else if (key === 'sources' && Array.isArray(value)) {
+            payload.sources = (value as ShortVideoSource[]).map((item) =>
+              buildSourcePayload(item)
+            );
+          } else {
+            payload[key] = value;
+          }
+        }
+        return payload;
+      },
+      [buildSourcePayload]
+    );
+
+    const invokeVodPlayer = useCallback(
+      async <Result = unknown,>(
+        command: VodPlayerCommand,
+        options?: VodPlayerCommandOptions
+      ): Promise<Result> => {
+        if (nativeRef.current == null) {
+          throw new Error('TuiplayerShortVideoView is not attached');
+        }
+        const viewTag = findNodeHandle(nativeRef.current);
+        if (viewTag == null) {
+          throw new Error('Unable to resolve native view tag');
+        }
+        const payload = serializeVodOptions(command, options);
+        const result = await NativeTuiplayer.callShortVideoVodPlayer(
+          viewTag,
+          command,
+          payload
+        );
+        return result as Result;
+      },
+      [nativeRef, serializeVodOptions]
+    );
+
+    const vodPlayerHandle = useMemo<TuiplayerVodPlayerHandle>(
+      () => ({
+        startPlay: async (source, options) => {
+          await invokeVodPlayer('startPlay', {
+            ...options,
+            source,
+          });
+        },
+        resume: async (options) => {
+          await invokeVodPlayer('resumePlay', options);
+        },
+        pause: async (options) => {
+          await invokeVodPlayer('pause', options);
+        },
+        stop: async (options) => {
+          await invokeVodPlayer('stop', options);
+        },
+        seekTo: async (time, options) => {
+          await invokeVodPlayer('seekTo', { ...options, time });
+        },
+        isPlaying: (options) => invokeVodPlayer<boolean>('isPlaying', options),
+        setLoop: async (loop, options) => {
+          await invokeVodPlayer('setLoop', { ...options, loop });
+        },
+        isLoop: (options) => invokeVodPlayer<boolean>('isLoop', options),
+        setRate: async (rate, options) => {
+          await invokeVodPlayer('setRate', { ...options, rate });
+        },
+        getDuration: (options) =>
+          invokeVodPlayer<number>('getDuration', options),
+        getCurrentPlaybackTime: (options) =>
+          invokeVodPlayer<number>('getCurrentPlaybackTime', options),
+        getPlayableDuration: (options) =>
+          invokeVodPlayer<number>('getPlayableDuration', options),
+        setMute: async (mute, options) => {
+          await invokeVodPlayer('setMute', { ...options, mute });
+        },
+        setAudioPlayoutVolume: async (volume, options) => {
+          await invokeVodPlayer('setAudioPlayoutVolume', {
+            ...options,
+            volume,
+          });
+        },
+        setMirror: async (mirror, options) => {
+          await invokeVodPlayer('setMirror', { ...options, mirror });
+        },
+        setBitrateIndex: async (index, options) => {
+          await invokeVodPlayer('setBitrateIndex', { ...options, index });
+        },
+        getBitrateIndex: (options) =>
+          invokeVodPlayer<number>('getBitrateIndex', options),
+        getSupportResolution: (options) =>
+          invokeVodPlayer<VodPlayerSupportResolution[]>(
+            'getSupportResolution',
+            options
+          ),
+        setRenderRotation: async (rotation, options) => {
+          await invokeVodPlayer('setRenderRotation', {
+            ...options,
+            rotation,
+          });
+        },
+        setRenderMode: async (mode, options) => {
+          await invokeVodPlayer('setRenderMode', {
+            ...options,
+            mode,
+          });
+        },
+        getWidth: (options) => invokeVodPlayer<number>('getWidth', options),
+        getHeight: (options) => invokeVodPlayer<number>('getHeight', options),
+        switchResolution: (resolution, options) =>
+          invokeVodPlayer<boolean | void>('switchResolution', {
+            ...options,
+            resolution,
+          }),
+        setAudioNormalization: async (value, options) => {
+          await invokeVodPlayer('setAudioNormalization', {
+            ...options,
+            value,
+          });
+        },
+        enableHardwareDecode: (enable, options) =>
+          invokeVodPlayer<boolean | void>('enableHardwareDecode', {
+            ...options,
+            enable,
+          }),
+      }),
+      [invokeVodPlayer]
+    );
+
     useImperativeHandle(ref, () => ({
       startPlayIndex: (index: number, smooth = false) => {
         if (nativeRef.current != null) {
@@ -260,6 +580,97 @@ export const TuiplayerShortVideoView = forwardRef<
           Commands.setUserInputEnabled(nativeRef.current, enabled);
         }
       },
+      getCurrentSource: async () => {
+        if (nativeRef.current == null) {
+          return null;
+        }
+        const viewTag = findNodeHandle(nativeRef.current);
+        if (viewTag == null) {
+          return null;
+        }
+        return NativeTuiplayer.getCurrentShortVideoSource(viewTag);
+      },
+      getDataCount: async () => {
+        if (nativeRef.current == null) {
+          return 0;
+        }
+        const viewTag = findNodeHandle(nativeRef.current);
+        if (viewTag == null) {
+          return 0;
+        }
+        return NativeTuiplayer.getShortVideoDataCount(viewTag);
+      },
+      getDataByIndex: async (index: number) => {
+        if (nativeRef.current == null) {
+          return null;
+        }
+        const viewTag = findNodeHandle(nativeRef.current);
+        if (viewTag == null) {
+          return null;
+        }
+        return NativeTuiplayer.getShortVideoDataByIndex(viewTag, index);
+      },
+      removeData: async (index: number) => {
+        const viewTag = findNodeHandle(nativeRef.current);
+        if (viewTag == null) {
+          return;
+        }
+        await NativeTuiplayer.removeShortVideoData(viewTag, index);
+      },
+      removeRangeData: async (index: number, count: number) => {
+        const viewTag = findNodeHandle(nativeRef.current);
+        if (viewTag == null) {
+          return;
+        }
+        await NativeTuiplayer.removeShortVideoRange(viewTag, index, count);
+      },
+      removeDataByIndexes: async (indexes: number[]) => {
+        const viewTag = findNodeHandle(nativeRef.current);
+        if (viewTag == null) {
+          return;
+        }
+        await NativeTuiplayer.removeShortVideoDataByIndexes(viewTag, indexes);
+      },
+      addData: async (source: ShortVideoSource, index = -1) => {
+        const viewTag = findNodeHandle(nativeRef.current);
+        if (viewTag == null) {
+          return;
+        }
+        const payload = buildSourcePayload(source);
+        await NativeTuiplayer.addShortVideoData(viewTag, payload, index);
+      },
+      addRangeData: async (list: ShortVideoSource[], startIndex = -1) => {
+        const viewTag = findNodeHandle(nativeRef.current);
+        if (viewTag == null) {
+          return;
+        }
+        const payload = list.map(buildSourcePayload);
+        await NativeTuiplayer.addShortVideoRange(viewTag, payload, startIndex);
+      },
+      replaceData: async (source: ShortVideoSource, index: number) => {
+        const viewTag = findNodeHandle(nativeRef.current);
+        if (viewTag == null) {
+          return;
+        }
+        const payload = buildSourcePayload(source);
+        await NativeTuiplayer.replaceShortVideoData(viewTag, payload, index);
+      },
+      replaceRangeData: async (
+        list: ShortVideoSource[],
+        startIndex: number
+      ) => {
+        const viewTag = findNodeHandle(nativeRef.current);
+        if (viewTag == null) {
+          return;
+        }
+        const payload = list.map(buildSourcePayload);
+        await NativeTuiplayer.replaceShortVideoRange(
+          viewTag,
+          payload,
+          startIndex
+        );
+      },
+      vodPlayer: vodPlayerHandle,
     }));
 
     const normalizedLayers = useMemo(() => {
@@ -289,6 +700,7 @@ export const TuiplayerShortVideoView = forwardRef<
         liveStrategy={normalizedLiveStrategy}
         onPageChanged={onPageChanged}
         onEndReached={onEndReached}
+        onVodEvent={onVodEvent}
       />
     );
   }
@@ -305,9 +717,10 @@ export type {
   TuiplayerLicenseConfig,
   TuiplayerVodStrategyOptions,
   TuiplayerLiveStrategyOptions,
+  TuiplayerLayerConfig,
+  ShortVideoSourceSnapshot,
+  CurrentShortVideoInfo,
 } from './types';
-
-export type { TuiplayerLayerConfig } from './types';
 
 function normalizePreferredResolution(value: PreferredResolution | undefined) {
   if (!value) {

@@ -87,7 +87,8 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
   override fun getExportedCustomDirectEventTypeConstants(): MutableMap<String, Any> {
     return mutableMapOf(
       TuiplayerShortVideoPageChangedEvent.EVENT_NAME to mapOf("registrationName" to "onPageChanged"),
-      TuiplayerShortVideoEndReachedEvent.EVENT_NAME to mapOf("registrationName" to "onEndReached")
+      TuiplayerShortVideoEndReachedEvent.EVENT_NAME to mapOf("registrationName" to "onEndReached"),
+      TuiplayerShortVideoVodEvent.EVENT_NAME to mapOf("registrationName" to "onVodEvent")
     )
   }
 
@@ -104,6 +105,7 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
     )
   }
 
+  @Suppress("DEPRECATION")
   override fun receiveCommand(view: TuiplayerShortVideoView, commandId: String, args: ReadableArray?) {
     when (commandId) {
       "startPlayIndex" -> handleStartPlayIndex(view, args)
@@ -117,6 +119,7 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
     }
   }
 
+  @Suppress("DEPRECATION")
   override fun receiveCommand(view: TuiplayerShortVideoView, commandId: Int, args: ReadableArray?) {
     when (commandId) {
       COMMAND_START_PLAY_INDEX -> handleStartPlayIndex(view, args)

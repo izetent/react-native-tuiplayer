@@ -81,6 +81,11 @@ export interface TuiplayerShortVideoViewPageChangedEvent {
   total: Int32;
 }
 
+export interface TuiplayerVodEvent {
+  type: string;
+  payload?: Readonly<Record<string, unknown> | undefined>;
+}
+
 export interface NativeProps extends ViewProps {
   sources?: ReadonlyArray<NativeShortVideoSource>;
   autoPlay?: WithDefault<boolean, true>;
@@ -98,6 +103,7 @@ export interface NativeProps extends ViewProps {
   onPageChanged?: (
     event: NativeEvent<TuiplayerShortVideoViewPageChangedEvent>
   ) => void;
+  onVodEvent?: (event: NativeEvent<TuiplayerVodEvent>) => void;
 }
 
 const COMPONENT_NAME = 'TuiplayerShortVideoView';
