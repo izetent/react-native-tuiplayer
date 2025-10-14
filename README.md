@@ -44,6 +44,17 @@ export function Player() {
 }
 ```
 
+> 封面图展示
+>
+> - 只需在 `ShortVideoSource` 中指定 `coverPictureUrl`，Android 端默认会挂载内置的 `com.tuiplayer.shortvideo.layer.TuiplayerCoverLayer`，效果与官方 Demo 一致。
+> - 如需自定义 Vod Layer，可在 `layers.vodLayers` 中显式加入或替换封面层，避免重复添加。
+>
+> 操作图层
+>
+> - Android 端额外挂载 `com.tuiplayer.shortvideo.layer.TuiplayerInfoLayer`，默认展示头像、标题及点赞/评论/收藏按钮。
+> - 新增的 `ShortVideoSource.meta` 字段可传递作者信息与统计数据；按钮点击会通过 `onVodEvent` 回调一条 `type: 'overlayAction'` 事件，包含 `action`、`index` 与最新 `source` 数据，方便在 RN 侧处理点赞等逻辑。
+> - 若需完全自定义，可在 `layers.vodLayers` 覆盖该图层或自行扩展实现。
+
 ### License
 
 请在腾讯云 [License 管理](https://console.cloud.tencent.com/vcube/mobile) 中获取移动端高级播放器 License，将 `licenseKey` 与 `licenseUrl` 传给 `initialize`。如果未设置 License，SDK 会无法正常播放。

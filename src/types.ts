@@ -80,6 +80,28 @@ export type ShortVideoSourceConfig = {
 };
 
 /**
+ * 覆盖在视频上的额外展示信息，对应 Android 覆盖图层。
+ */
+export type ShortVideoOverlayMeta = {
+  /** 作者/发布者名称。 */
+  authorName?: string;
+  /** 作者头像 URL。 */
+  authorAvatar?: string;
+  /** 视频标题或简介。 */
+  title?: string;
+  /** 点赞数量。 */
+  likeCount?: number;
+  /** 评论数量。 */
+  commentCount?: number;
+  /** 收藏/追剧数量。 */
+  favoriteCount?: number;
+  /** 当前是否已点赞。 */
+  isLiked?: boolean;
+  /** 当前是否已收藏。 */
+  isBookmarked?: boolean;
+};
+
+/**
  * 单条短视频数据模型。
  */
 export type ShortVideoSource = {
@@ -91,7 +113,7 @@ export type ShortVideoSource = {
   fileId?: string;
   /** 直接播放的 URL。 */
   url?: string;
-  /** 播放前显示的封面图。 */
+  /** 播放前显示的封面图，Android 默认附带封面层展示。 */
   coverPictureUrl?: string;
   /** 加密 fileId 使用的 pSign。 */
   pSign?: string;
@@ -101,6 +123,8 @@ export type ShortVideoSource = {
   autoPlay?: boolean;
   /** 该视频独立的缓冲配置。 */
   videoConfig?: ShortVideoSourceConfig;
+  /** 覆盖 UI 所需的额外信息（Android 默认展示）。 */
+  meta?: ShortVideoOverlayMeta;
 };
 
 /**

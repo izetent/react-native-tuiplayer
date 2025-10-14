@@ -338,6 +338,7 @@ export const TuiplayerShortVideoView = forwardRef<
         extViewType: item.extViewType,
         autoPlay: item.autoPlay,
         videoConfig: item.videoConfig,
+        meta: item.meta,
       }),
       []
     );
@@ -714,6 +715,7 @@ const styles = StyleSheet.create({
 
 export type {
   ShortVideoSource,
+  ShortVideoOverlayMeta,
   TuiplayerLicenseConfig,
   TuiplayerVodStrategyOptions,
   TuiplayerLiveStrategyOptions,

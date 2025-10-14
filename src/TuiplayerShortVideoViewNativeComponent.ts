@@ -10,6 +10,17 @@ import type {
   WithDefault,
 } from 'react-native/Libraries/Types/CodegenTypes';
 
+export type NativeShortVideoMeta = Readonly<{
+  authorName?: string;
+  authorAvatar?: string;
+  title?: string;
+  likeCount?: Double;
+  commentCount?: Double;
+  favoriteCount?: Double;
+  isLiked?: boolean;
+  isBookmarked?: boolean;
+}>;
+
 export type NativeShortVideoSource = Readonly<{
   type?: WithDefault<string, 'fileId'>;
   appId?: Int32;
@@ -23,6 +34,7 @@ export type NativeShortVideoSource = Readonly<{
     preloadBufferSizeInMB?: Double;
     preDownloadSize?: Double;
   }>;
+  meta?: NativeShortVideoMeta;
 }>;
 
 export type NativeLayerConfig = Readonly<{

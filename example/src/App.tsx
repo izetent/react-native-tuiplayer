@@ -15,6 +15,7 @@ import {
   TuiplayerListPlayMode,
   TuiplayerResolutionType,
   type ShortVideoSource,
+  type ShortVideoOverlayMeta,
   type TuiplayerShortVideoViewHandle,
   type VodPlayerSupportResolution,
 } from 'react-native-tuiplayer';
@@ -28,6 +29,11 @@ type Video = {
   cover?: string;
   episode?: number;
   links720p?: string[] | string;
+  authorName?: string;
+  authorAvatar?: string;
+  details?: string;
+  type?: string;
+  isLiked?: number;
   [key: string]: unknown;
 };
 
@@ -126,12 +132,108 @@ const buildVideoSource = (video: Video): ShortVideoSource | null => {
     (value): value is string => typeof value === 'string' && value.length > 0
   );
 
+  const authorName =
+    pickString(
+      video.authorName,
+      video.author,
+      video.uploader,
+      video.source,
+      video.name
+    ) ?? '官方账号';
+  const authorAvatar = pickString(
+    video.authorAvatar,
+    video.avatar,
+    video.icon,
+    video.img
+  );
+  const title =
+    pickString(
+      video.title,
+      video.subtitle,
+      video.details,
+      video.description,
+      video.name
+    ) ?? '';
+
   return {
     type: 'url',
     url: resolvedUrl,
     coverPictureUrl,
     autoPlay: true,
+    meta: {
+      authorName,
+      authorAvatar,
+      title,
+      likeCount: pickNumber(video.likeCount, video.likes),
+      commentCount: pickNumber(video.commentCount, video.comments),
+      favoriteCount: pickNumber(video.favoriteCount, video.collectCount),
+      isLiked: pickBoolean(video.isLiked, video.liked),
+      isBookmarked: pickBoolean(video.isBookmarked, video.favorited),
+    },
   };
+};
+
+const pickString = (...values: unknown[]): string | undefined => {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return undefined;
+};
+
+const pickNumber = (...values: unknown[]): number | undefined => {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+  return undefined;
+};
+
+const ensureNumber = (value: unknown, fallback = 0): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return fallback;
+};
+
+const pickBoolean = (...values: unknown[]): boolean | undefined => {
+  for (const value of values) {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      if (value === 1) {
+        return true;
+      }
+      if (value === 0) {
+        return false;
+      }
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (['1', 'true', 'yes', 'y'].includes(normalized)) {
+        return true;
+      }
+      if (['0', 'false', 'no', 'n'].includes(normalized)) {
+        return false;
+      }
+    }
+  }
+  return undefined;
 };
 
 async function requestFeaturedVideos(
@@ -408,6 +510,102 @@ export default function App() {
     loadMoreRemote();
   }, [loadMoreRemote]);
 
+  const applyOverlayMeta = useCallback(
+    (
+      index: number,
+      producer: (current: ShortVideoSource) => ShortVideoSource | null
+    ) => {
+      let nextSource: ShortVideoSource | null = null;
+      setSources((prev) => {
+        if (!Number.isInteger(index) || index < 0 || index >= prev.length) {
+          return prev;
+        }
+        const current = prev[index]!;
+        const updated = producer(current);
+        if (!updated) {
+          return prev;
+        }
+        if (updated === current) {
+          return prev;
+        }
+        nextSource = updated;
+        const next = prev.slice();
+        next[index] = updated;
+        return next;
+      });
+      if (nextSource) {
+        playerRef.current?.replaceData(nextSource, index).catch((error) => {
+          console.warn('[ShortVideo] 更新原生数据失败:', error);
+        });
+      }
+    },
+    []
+  );
+
+  const handleOverlayAction = useCallback(
+    (payload?: Record<string, unknown>) => {
+      const action =
+        typeof payload?.action === 'string' ? payload.action : undefined;
+      const indexRaw = payload?.index;
+      const index =
+        typeof indexRaw === 'number' && Number.isInteger(indexRaw)
+          ? indexRaw
+          : -1;
+      if (index < 0 || action == null) {
+        return;
+      }
+      applyOverlayMeta(index, (current) => {
+        const nativeMeta = (payload?.source as { meta?: ShortVideoOverlayMeta })
+          ?.meta;
+        const baseMeta: ShortVideoOverlayMeta = {
+          ...(current.meta ?? {}),
+          ...(nativeMeta ?? {}),
+        };
+        switch (action) {
+          case 'like': {
+            const liked = baseMeta.isLiked ?? false;
+            const base = ensureNumber(baseMeta.likeCount, 0);
+            return {
+              ...current,
+              meta: {
+                ...baseMeta,
+                isLiked: !liked,
+                likeCount: Math.max(0, base + (liked ? -1 : 1)),
+              },
+            };
+          }
+          case 'favorite': {
+            const bookmarked = baseMeta.isBookmarked ?? false;
+            const base = ensureNumber(baseMeta.favoriteCount, 0);
+            return {
+              ...current,
+              meta: {
+                ...baseMeta,
+                isBookmarked: !bookmarked,
+                favoriteCount: Math.max(0, base + (bookmarked ? -1 : 1)),
+              },
+            };
+          }
+          case 'comment': {
+            console.log('[ShortVideo] 点击评论，打开评论面板');
+            return current;
+          }
+          case 'follow': {
+            console.log('[ShortVideo] 点击关注作者');
+            return current;
+          }
+          case 'author': {
+            console.log('[ShortVideo] 点击作者信息栏');
+            return current;
+          }
+          default:
+            return current;
+        }
+      });
+    },
+    [applyOverlayMeta]
+  );
+
   const handleVodEvent = useCallback(
     ({
       nativeEvent: { type, payload },
@@ -415,6 +613,10 @@ export default function App() {
       nativeEvent: { type: string; payload?: Record<string, unknown> };
     }) => {
       console.log('[ShortVideo] VodEvent', type, payload);
+      if (type === 'overlayAction') {
+        handleOverlayAction(payload);
+        return;
+      }
       setVodStatus((prev) => {
         let next = prev;
         switch (type) {
@@ -488,7 +690,7 @@ export default function App() {
         return next;
       });
     },
-    []
+    [handleOverlayAction]
   );
 
   const infoText = useMemo(() => {

@@ -16,6 +16,17 @@ export type ShortVideoSourceConfigPayload = {
   preDownloadSize?: number;
 };
 
+export type ShortVideoSourceMetaPayload = {
+  authorName?: string;
+  authorAvatar?: string;
+  title?: string;
+  likeCount?: number;
+  commentCount?: number;
+  favoriteCount?: number;
+  isLiked?: boolean;
+  isBookmarked?: boolean;
+};
+
 export type ShortVideoSourcePayload = {
   type?: 'fileId' | 'url';
   appId?: number;
@@ -26,6 +37,7 @@ export type ShortVideoSourcePayload = {
   extViewType?: number;
   autoPlay?: boolean;
   videoConfig?: ShortVideoSourceConfigPayload;
+  meta?: ShortVideoSourceMetaPayload;
   duration?: number;
 };
 

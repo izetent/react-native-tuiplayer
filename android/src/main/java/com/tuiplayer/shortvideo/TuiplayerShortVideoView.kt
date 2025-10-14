@@ -41,10 +41,16 @@ import com.tencent.qcloud.tuiplayer.shortvideo.api.data.TUIShortVideoDataManager
 import com.tencent.qcloud.tuiplayer.shortvideo.ui.view.TUIShortVideoListener
 import com.tencent.qcloud.tuiplayer.shortvideo.ui.view.TUIShortVideoView
 import com.tencent.rtmp.TXTrackInfo
+import com.tuiplayer.shortvideo.layer.TuiplayerCoverLayer
+import com.tuiplayer.shortvideo.layer.TuiplayerHostAwareLayer
+import com.tuiplayer.shortvideo.layer.TuiplayerInfoLayer
+import com.tuiplayer.shortvideo.layer.TuiplayerLayerHost
+import java.util.Collections
+import java.util.WeakHashMap
 
 internal class TuiplayerShortVideoView(
   private val themedReactContext: ThemedReactContext
-  ) : FrameLayout(themedReactContext), LifecycleEventListener {
+  ) : FrameLayout(themedReactContext), LifecycleEventListener, TuiplayerLayerHost {
 
   private val shortVideoView = TUIShortVideoView(themedReactContext)
   private var currentVodPlayer: ITUIVodPlayer? = null
@@ -53,11 +59,15 @@ internal class TuiplayerShortVideoView(
     override fun onResume(owner: LifecycleOwner) {
       if (autoPlay) {
         shortVideoView.resume()
+        if (!isManuallyPaused) {
+          notifyHostLayersPaused(false)
+        }
       }
     }
 
     override fun onPause(owner: LifecycleOwner) {
       shortVideoView.pause()
+      notifyHostLayersPaused(true)
     }
 
     override fun onDestroy(owner: LifecycleOwner) {
@@ -76,6 +86,8 @@ internal class TuiplayerShortVideoView(
   private var userInputEnabled: Boolean = true
   private var pageScrollMsPerInch: Float? = null
   private var layerConfig: LayerConfig? = null
+  private val hostAwareLayers: MutableSet<TuiplayerHostAwareLayer> =
+    Collections.newSetFromMap(WeakHashMap())
 
   private val vodObserver = object : TUIVodObserver {
     override fun onPlayPrepare() {
@@ -251,8 +263,12 @@ internal class TuiplayerShortVideoView(
     autoPlay = value
     if (!autoPlay) {
       shortVideoView.pause()
+      notifyHostLayersPaused(true)
     } else if (!isManuallyPaused) {
       shortVideoView.resume()
+      notifyHostLayersPaused(false)
+    } else {
+      notifyHostLayersPaused(true)
     }
   }
 
@@ -260,8 +276,12 @@ internal class TuiplayerShortVideoView(
     isManuallyPaused = value
     if (value) {
       shortVideoView.pause()
+      notifyHostLayersPaused(true)
     } else if (autoPlay) {
       shortVideoView.resume()
+      notifyHostLayersPaused(false)
+    } else {
+      notifyHostLayersPaused(true)
     }
   }
 
@@ -360,6 +380,7 @@ internal class TuiplayerShortVideoView(
   override fun onDetachedFromWindow() {
     super.onDetachedFromWindow()
     shortVideoView.pause()
+    notifyHostLayersPaused(true)
   }
 
   private fun bindLifecycle() {
@@ -379,23 +400,29 @@ internal class TuiplayerShortVideoView(
     if (isReleased) {
       return
     }
+    notifyHostLayersPaused(true)
     isReleased = true
     lifecycleOwner?.lifecycle?.removeObserver(lifecycleObserver)
     lifecycleOwner = null
     detachCurrentVodPlayer()
     shortVideoView.release()
     themedReactContext.removeLifecycleEventListener(this)
+    hostAwareLayers.clear()
   }
 
   override fun onHostResume() {
     bindLifecycle()
     if (autoPlay && !isManuallyPaused) {
       shortVideoView.resume()
+      notifyHostLayersPaused(false)
+    } else {
+      notifyHostLayersPaused(true)
     }
   }
 
   override fun onHostPause() {
     shortVideoView.pause()
+    notifyHostLayersPaused(true)
   }
 
   override fun onHostDestroy() {
@@ -472,6 +499,7 @@ internal class TuiplayerShortVideoView(
   fun commandResume() {
     isManuallyPaused = false
     shortVideoView.resume()
+    notifyHostLayersPaused(false)
   }
 
   fun commandSwitchResolution(resolution: Double, target: Int) {
@@ -716,6 +744,59 @@ internal class TuiplayerShortVideoView(
     return shortVideoView.dataManager
   }
 
+  override fun resolveSource(model: TUIVideoSource): TuiplayerShortVideoSource? {
+    return findSourceMatch(model)?.second
+  }
+
+  override fun resolveIndex(model: TUIVideoSource): Int? {
+    return findSourceMatch(model)?.first
+  }
+
+  override fun emitOverlayAction(model: TUIVideoSource, action: String) {
+    val payload = Arguments.createMap().apply {
+      putString("action", action)
+    }
+    val match = findSourceMatch(model)
+    if (match != null) {
+      val (index, source) = match
+      payload.putInt("index", index)
+      payload.putMap("source", source.toSnapshotMap())
+    } else {
+      payload.putInt("index", -1)
+    }
+    emitVodEvent("overlayAction", payload)
+  }
+
+  private fun findSourceMatch(model: TUIVideoSource): Pair<Int, TuiplayerShortVideoSource>? {
+    currentSources.forEachIndexed { index, source ->
+      if (source.matchesModel(model)) {
+        return index to source
+      }
+    }
+    val currentIndex = shortVideoView.dataManager?.currentIndex
+    if (currentIndex != null && currentIndex in currentSources.indices) {
+      val fallback = currentSources[currentIndex]
+      return currentIndex to fallback
+    }
+    return null
+  }
+
+  private fun registerHostLayer(layer: TuiplayerHostAwareLayer) {
+    layer.attachHost(this)
+    hostAwareLayers.add(layer)
+    layer.onPlaybackStateChanged(isPlaybackPaused())
+  }
+
+  private fun notifyHostLayersPaused(paused: Boolean) {
+    hostAwareLayers.forEach { hostLayer ->
+      hostLayer.onPlaybackStateChanged(paused)
+    }
+  }
+
+  private fun isPlaybackPaused(): Boolean {
+    return isManuallyPaused || !autoPlay || isReleased
+  }
+
   private fun detachCurrentVodPlayer() {
     currentVodPlayer?.removePlayerObserver(vodObserver)
     currentVodPlayer = null
@@ -789,6 +870,7 @@ internal class TuiplayerShortVideoView(
       shortVideoView.startPlayIndex(index)
       if (autoPlay && !isManuallyPaused) {
         shortVideoView.resume()
+        notifyHostLayersPaused(false)
       }
     }
   }
@@ -954,12 +1036,41 @@ internal class TuiplayerShortVideoView(
   }
 
   private fun applyVodLayers(manager: TUIVodLayerManager) {
-    val config = layerConfig ?: return
-    config.vodLayers.forEach { name ->
-      val layer = instantiateLayer(name)
-      if (layer is TUIVodLayer) {
-        manager.addLayer(layer)
+    var hasCoverLayer = false
+    var hasInfoLayer = false
+
+    val config = layerConfig
+    if (config != null) {
+      config.vodLayers.forEach { name ->
+        val layer = instantiateLayer(name)
+        if (layer is TUIVodLayer) {
+          if (layer is TuiplayerHostAwareLayer) {
+            registerHostLayer(layer)
+          }
+          val tag = runCatching { layer.tag() }.getOrNull()
+          if (!hasCoverLayer && (layer.javaClass == TuiplayerCoverLayer::class.java ||
+              tag == TuiplayerCoverLayer.TAG || tag == "CoverLayer")
+          ) {
+            hasCoverLayer = true
+          }
+          if (!hasInfoLayer && (layer.javaClass == TuiplayerInfoLayer::class.java ||
+              tag == TuiplayerInfoLayer.TAG)
+          ) {
+            hasInfoLayer = true
+          }
+          manager.addLayer(layer)
+        }
       }
+    }
+    if (!hasCoverLayer) {
+      manager.addLayer(TuiplayerCoverLayer())
+    }
+    if (!hasInfoLayer) {
+      manager.addLayer(
+        TuiplayerInfoLayer().also { infoLayer ->
+          registerHostLayer(infoLayer)
+        }
+      )
     }
   }
 
@@ -968,6 +1079,9 @@ internal class TuiplayerShortVideoView(
     config.liveLayers.forEach { name ->
       val layer = instantiateLayer(name)
       if (layer is TUILiveLayer) {
+        if (layer is TuiplayerHostAwareLayer) {
+          registerHostLayer(layer)
+        }
         manager.addLayer(layer)
       }
     }
@@ -978,6 +1092,9 @@ internal class TuiplayerShortVideoView(
     config.customLayers.forEach { name ->
       val layer = instantiateLayer(name)
       if (layer is TUICustomLayer) {
+        if (layer is TuiplayerHostAwareLayer) {
+          registerHostLayer(layer)
+        }
         manager.addLayer(layer)
       }
     }
@@ -1170,6 +1287,7 @@ private fun ReadableMap.toShortVideoSource(): TuiplayerShortVideoSource? {
   } else {
     null
   }
+  val metadata = getMapOrNull("meta")?.toShortVideoMetadata()
   if (type == TuiplayerShortVideoSource.SourceType.FILE_ID && fileId.isNullOrBlank()) {
     return null
   }
@@ -1185,7 +1303,8 @@ private fun ReadableMap.toShortVideoSource(): TuiplayerShortVideoSource? {
     pSign = pSign,
     extViewType = extViewType,
     autoPlay = autoPlay,
-    videoConfig = videoConfig
+    videoConfig = videoConfig,
+    metadata = metadata
   )
 }
 
@@ -1230,5 +1349,44 @@ private fun TuiplayerShortVideoSource.toSnapshotMap(): WritableMap {
       map.putMap("videoConfig", configMap)
     }
   }
+  metadata?.takeIf { it.hasValue }?.let { meta ->
+    map.putMap("meta", meta.toWritableMap())
+  }
+  return map
+}
+
+private fun ReadableMap.toShortVideoMetadata(): TuiplayerShortVideoSource.Metadata? {
+  val authorName = getStringOrNull("authorName")
+  val authorAvatar = getStringOrNull("authorAvatar")
+  val title = getStringOrNull("title")
+  val likeCount = getDoubleOrNull("likeCount")?.toLong()
+  val commentCount = getDoubleOrNull("commentCount")?.toLong()
+  val favoriteCount = getDoubleOrNull("favoriteCount")?.toLong()
+  val isLiked = getBooleanOrNull("isLiked")
+  val isBookmarked = getBooleanOrNull("isBookmarked")
+
+  val metadata = TuiplayerShortVideoSource.Metadata(
+    authorName = authorName,
+    authorAvatar = authorAvatar,
+    title = title,
+    likeCount = likeCount,
+    commentCount = commentCount,
+    favoriteCount = favoriteCount,
+    isLiked = isLiked,
+    isBookmarked = isBookmarked
+  )
+  return metadata.takeIf { it.hasValue }
+}
+
+private fun TuiplayerShortVideoSource.Metadata.toWritableMap(): WritableMap {
+  val map = Arguments.createMap()
+  authorName?.takeIf { it.isNotBlank() }?.let { map.putString("authorName", it) }
+  authorAvatar?.takeIf { it.isNotBlank() }?.let { map.putString("authorAvatar", it) }
+  title?.takeIf { it.isNotBlank() }?.let { map.putString("title", it) }
+  likeCount?.let { map.putDouble("likeCount", it.toDouble()) }
+  commentCount?.let { map.putDouble("commentCount", it.toDouble()) }
+  favoriteCount?.let { map.putDouble("favoriteCount", it.toDouble()) }
+  isLiked?.let { map.putBoolean("isLiked", it) }
+  isBookmarked?.let { map.putBoolean("isBookmarked", it) }
   return map
 }

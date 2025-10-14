@@ -13,7 +13,8 @@ internal data class TuiplayerShortVideoSource(
   val pSign: String?,
   val extViewType: Int?,
   val autoPlay: Boolean?,
-  val videoConfig: VideoConfig?
+  val videoConfig: VideoConfig?,
+  val metadata: Metadata?
 ) {
 
   enum class SourceType {
@@ -25,6 +26,34 @@ internal data class TuiplayerShortVideoSource(
     val preloadBufferSizeInMB: Float?,
     val preDownloadSizeInMB: Double?
   )
+
+  data class Metadata(
+    val authorName: String?,
+    val authorAvatar: String?,
+    val title: String?,
+    val likeCount: Long?,
+    val commentCount: Long?,
+    val favoriteCount: Long?,
+    val isLiked: Boolean?,
+    val isBookmarked: Boolean?
+  ) {
+    val hasValue: Boolean =
+      listOf(
+        authorName,
+        authorAvatar,
+        title,
+        likeCount,
+        commentCount,
+        favoriteCount,
+        isLiked,
+        isBookmarked
+      ).any { value ->
+        when (value) {
+          is String -> value.isNotBlank()
+          else -> value != null
+        }
+      }
+  }
 
   fun toPlaySource(): TUIPlaySource? {
     val playSource = TUIVideoSource()
@@ -57,5 +86,24 @@ internal data class TuiplayerShortVideoSource(
       }
     }
     return playSource
+  }
+
+  fun matchesModel(model: TUIVideoSource): Boolean {
+    val modelFileId = model.fileId
+    val modelUrl = model.videoURL
+    val modelAppId = model.appId
+
+    if (!fileId.isNullOrBlank() && !modelFileId.isNullOrBlank()) {
+      if (!fileId.equals(modelFileId, ignoreCase = false)) {
+        return false
+      }
+      return appId == null || appId == 0 || appId == modelAppId
+    }
+
+    if (!url.isNullOrBlank() && !modelUrl.isNullOrBlank()) {
+      return url == modelUrl
+    }
+
+    return false
   }
 }
