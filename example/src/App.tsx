@@ -380,6 +380,9 @@ export default function App() {
   useEffect(() => {
     if (sources.length === 0) {
       resetSources();
+      setTimeout(() => {
+        handleJumpToStart();
+      }, 500);
     }
     return () => {
       isMountedRef.current = false;
