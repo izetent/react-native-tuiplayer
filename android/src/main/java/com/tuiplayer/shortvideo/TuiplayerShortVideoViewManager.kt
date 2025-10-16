@@ -8,6 +8,7 @@ import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.annotations.ReactProp
 import com.tuiplayer.shortvideo.TuiplayerShortVideoEndReachedEvent
 import com.tuiplayer.shortvideo.TuiplayerShortVideoPageChangedEvent
+import com.tuiplayer.shortvideo.TuiplayerShortVideoReadyEvent
 
 @ReactModule(name = TuiplayerShortVideoViewManager.NAME)
 internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShortVideoView>() {
@@ -88,7 +89,8 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
     return mutableMapOf(
       TuiplayerShortVideoPageChangedEvent.EVENT_NAME to mapOf("registrationName" to "onPageChanged"),
       TuiplayerShortVideoEndReachedEvent.EVENT_NAME to mapOf("registrationName" to "onEndReached"),
-      TuiplayerShortVideoVodEvent.EVENT_NAME to mapOf("registrationName" to "onVodEvent")
+      TuiplayerShortVideoVodEvent.EVENT_NAME to mapOf("registrationName" to "onVodEvent"),
+      TuiplayerShortVideoReadyEvent.EVENT_NAME to mapOf("registrationName" to "onReady")
     )
   }
 

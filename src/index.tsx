@@ -2,9 +2,11 @@ import {
   type ElementRef,
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import {
   StyleSheet,
@@ -299,7 +301,12 @@ export type TuiplayerShortVideoViewProps = {
       payload?: Record<string, unknown>;
     };
   }) => void;
+  onReady?: () => void;
 };
+
+type PendingNativeCommand = (
+  ref: ElementRef<typeof TuiplayerShortVideoNativeComponent>
+) => void;
 
 export const TuiplayerShortVideoView = forwardRef<
   TuiplayerShortVideoViewHandle,
@@ -321,11 +328,63 @@ export const TuiplayerShortVideoView = forwardRef<
       onPageChanged,
       onEndReached,
       onVodEvent,
+      onReady: onReadyProp,
     },
     ref
   ) => {
     const nativeRef =
       useRef<ElementRef<typeof TuiplayerShortVideoNativeComponent>>(null);
+    const [nativeReady, setNativeReady] = useState(false);
+    const nativeReadyRef = useRef(false);
+    const pendingNativeCommands = useRef<PendingNativeCommand[]>([]);
+
+    const flushPendingNativeCommands = useCallback(() => {
+      if (!nativeReadyRef.current) {
+        return;
+      }
+      const view = nativeRef.current;
+      if (!view) {
+        return;
+      }
+      const queue = pendingNativeCommands.current;
+      pendingNativeCommands.current = [];
+      queue.forEach((command) => {
+        try {
+          command(view);
+        } catch (error) {
+          console.warn('[ShortVideo] 执行原生命令失败:', error);
+        }
+      });
+    }, []);
+
+    const runOrQueueNativeCommand = useCallback(
+      (command: PendingNativeCommand) => {
+        const view = nativeRef.current;
+        if (nativeReadyRef.current && view) {
+          try {
+            command(view);
+          } catch (error) {
+            console.warn('[ShortVideo] 执行原生命令失败:', error);
+          }
+        } else {
+          pendingNativeCommands.current.push(command);
+        }
+      },
+      []
+    );
+
+    useEffect(() => {
+      return () => {
+        nativeReadyRef.current = false;
+        pendingNativeCommands.current = [];
+      };
+    }, []);
+
+    useEffect(() => {
+      if (nativeReady) {
+        flushPendingNativeCommands();
+      }
+    }, [nativeReady, flushPendingNativeCommands]);
 
     const buildSourcePayload = useCallback(
       (item: ShortVideoSource): ShortVideoSourcePayload => ({
@@ -352,6 +411,24 @@ export const TuiplayerShortVideoView = forwardRef<
     const normalizedSources = useMemo<NativeShortVideoSource[]>(() => {
       return sources.map(toNativeSource);
     }, [sources, toNativeSource]);
+
+    const effectiveSources = useMemo<NativeShortVideoSource[]>(() => {
+      if (nativeReady) {
+        return normalizedSources;
+      }
+      return [] as NativeShortVideoSource[];
+    }, [nativeReady, normalizedSources]);
+
+    const handleNativeReady = useCallback(() => {
+      if (nativeReadyRef.current) {
+        return;
+      }
+      nativeReadyRef.current = true;
+      setNativeReady(true);
+      if (typeof onReadyProp === 'function') {
+        onReadyProp();
+      }
+    }, [onReadyProp]);
 
     const normalizedVodStrategy = useMemo<NativeVodStrategy | undefined>(() => {
       if (!vodStrategy) {
@@ -432,8 +509,10 @@ export const TuiplayerShortVideoView = forwardRef<
         command: VodPlayerCommand,
         options?: VodPlayerCommandOptions
       ): Promise<Result> => {
-        if (nativeRef.current == null) {
-          throw new Error('TuiplayerShortVideoView is not attached');
+        if (!nativeReadyRef.current || nativeRef.current == null) {
+          throw new Error(
+            'TuiplayerShortVideoView native instance is not ready.'
+          );
         }
         const viewTag = findNodeHandle(nativeRef.current);
         if (viewTag == null) {
@@ -540,139 +619,168 @@ export const TuiplayerShortVideoView = forwardRef<
       [invokeVodPlayer]
     );
 
-    useImperativeHandle(ref, () => ({
-      startPlayIndex: (index: number, smooth = false) => {
-        if (nativeRef.current != null) {
-          Commands.startPlayIndex(nativeRef.current, index, smooth);
-        }
-      },
-      setPlayMode: (mode: number) => {
-        if (nativeRef.current != null) {
-          Commands.setPlayMode(nativeRef.current, mode);
-        }
-      },
-      release: () => {
-        if (nativeRef.current != null) {
-          Commands.release(nativeRef.current);
-        }
-      },
-      resume: () => {
-        if (nativeRef.current != null) {
-          Commands.resume(nativeRef.current);
-        }
-      },
-      switchResolution: (resolution: number, target: number) => {
-        if (nativeRef.current != null) {
-          Commands.switchResolution(nativeRef.current, resolution, target);
-        }
-      },
-      pausePreload: () => {
-        if (nativeRef.current != null) {
-          Commands.pausePreload(nativeRef.current);
-        }
-      },
-      resumePreload: () => {
-        if (nativeRef.current != null) {
-          Commands.resumePreload(nativeRef.current);
-        }
-      },
-      setUserInputEnabled: (enabled: boolean) => {
-        if (nativeRef.current != null) {
-          Commands.setUserInputEnabled(nativeRef.current, enabled);
-        }
-      },
-      getCurrentSource: async () => {
-        if (nativeRef.current == null) {
-          return null;
-        }
-        const viewTag = findNodeHandle(nativeRef.current);
-        if (viewTag == null) {
-          return null;
-        }
-        return NativeTuiplayer.getCurrentShortVideoSource(viewTag);
-      },
-      getDataCount: async () => {
-        if (nativeRef.current == null) {
-          return 0;
-        }
-        const viewTag = findNodeHandle(nativeRef.current);
-        if (viewTag == null) {
-          return 0;
-        }
-        return NativeTuiplayer.getShortVideoDataCount(viewTag);
-      },
-      getDataByIndex: async (index: number) => {
-        if (nativeRef.current == null) {
-          return null;
-        }
-        const viewTag = findNodeHandle(nativeRef.current);
-        if (viewTag == null) {
-          return null;
-        }
-        return NativeTuiplayer.getShortVideoDataByIndex(viewTag, index);
-      },
-      removeData: async (index: number) => {
-        const viewTag = findNodeHandle(nativeRef.current);
-        if (viewTag == null) {
-          return;
-        }
-        await NativeTuiplayer.removeShortVideoData(viewTag, index);
-      },
-      removeRangeData: async (index: number, count: number) => {
-        const viewTag = findNodeHandle(nativeRef.current);
-        if (viewTag == null) {
-          return;
-        }
-        await NativeTuiplayer.removeShortVideoRange(viewTag, index, count);
-      },
-      removeDataByIndexes: async (indexes: number[]) => {
-        const viewTag = findNodeHandle(nativeRef.current);
-        if (viewTag == null) {
-          return;
-        }
-        await NativeTuiplayer.removeShortVideoDataByIndexes(viewTag, indexes);
-      },
-      addData: async (source: ShortVideoSource, index = -1) => {
-        const viewTag = findNodeHandle(nativeRef.current);
-        if (viewTag == null) {
-          return;
-        }
-        const payload = buildSourcePayload(source);
-        await NativeTuiplayer.addShortVideoData(viewTag, payload, index);
-      },
-      addRangeData: async (list: ShortVideoSource[], startIndex = -1) => {
-        const viewTag = findNodeHandle(nativeRef.current);
-        if (viewTag == null) {
-          return;
-        }
-        const payload = list.map(buildSourcePayload);
-        await NativeTuiplayer.addShortVideoRange(viewTag, payload, startIndex);
-      },
-      replaceData: async (source: ShortVideoSource, index: number) => {
-        const viewTag = findNodeHandle(nativeRef.current);
-        if (viewTag == null) {
-          return;
-        }
-        const payload = buildSourcePayload(source);
-        await NativeTuiplayer.replaceShortVideoData(viewTag, payload, index);
-      },
-      replaceRangeData: async (
-        list: ShortVideoSource[],
-        startIndex: number
-      ) => {
-        const viewTag = findNodeHandle(nativeRef.current);
-        if (viewTag == null) {
-          return;
-        }
-        const payload = list.map(buildSourcePayload);
-        await NativeTuiplayer.replaceShortVideoRange(
-          viewTag,
-          payload,
-          startIndex
-        );
-      },
-      vodPlayer: vodPlayerHandle,
-    }));
+    useImperativeHandle(
+      ref,
+      () => ({
+        startPlayIndex: (index: number, smooth = false) => {
+          runOrQueueNativeCommand((view) => {
+            Commands.startPlayIndex(view, index, smooth);
+          });
+        },
+        setPlayMode: (mode: number) => {
+          runOrQueueNativeCommand((view) => {
+            Commands.setPlayMode(view, mode);
+          });
+        },
+        release: () => {
+          runOrQueueNativeCommand((view) => {
+            Commands.release(view);
+          });
+        },
+        resume: () => {
+          runOrQueueNativeCommand((view) => {
+            Commands.resume(view);
+          });
+        },
+        switchResolution: (resolution: number, target: number) => {
+          runOrQueueNativeCommand((view) => {
+            Commands.switchResolution(view, resolution, target);
+          });
+        },
+        pausePreload: () => {
+          runOrQueueNativeCommand((view) => {
+            Commands.pausePreload(view);
+          });
+        },
+        resumePreload: () => {
+          runOrQueueNativeCommand((view) => {
+            Commands.resumePreload(view);
+          });
+        },
+        setUserInputEnabled: (enabled: boolean) => {
+          runOrQueueNativeCommand((view) => {
+            Commands.setUserInputEnabled(view, enabled);
+          });
+        },
+        getCurrentSource: async () => {
+          if (!nativeReadyRef.current || nativeRef.current == null) {
+            return null;
+          }
+          const viewTag = findNodeHandle(nativeRef.current);
+          if (viewTag == null) {
+            return null;
+          }
+          return NativeTuiplayer.getCurrentShortVideoSource(viewTag);
+        },
+        getDataCount: async () => {
+          if (!nativeReadyRef.current || nativeRef.current == null) {
+            return 0;
+          }
+          const viewTag = findNodeHandle(nativeRef.current);
+          if (viewTag == null) {
+            return 0;
+          }
+          return NativeTuiplayer.getShortVideoDataCount(viewTag);
+        },
+        getDataByIndex: async (index: number) => {
+          if (!nativeReadyRef.current || nativeRef.current == null) {
+            return null;
+          }
+          const viewTag = findNodeHandle(nativeRef.current);
+          if (viewTag == null) {
+            return null;
+          }
+          return NativeTuiplayer.getShortVideoDataByIndex(viewTag, index);
+        },
+        removeData: async (index: number) => {
+          if (!nativeReadyRef.current || nativeRef.current == null) {
+            return;
+          }
+          const viewTag = findNodeHandle(nativeRef.current);
+          if (viewTag == null) {
+            return;
+          }
+          await NativeTuiplayer.removeShortVideoData(viewTag, index);
+        },
+        removeRangeData: async (index: number, count: number) => {
+          if (!nativeReadyRef.current || nativeRef.current == null) {
+            return;
+          }
+          const viewTag = findNodeHandle(nativeRef.current);
+          if (viewTag == null) {
+            return;
+          }
+          await NativeTuiplayer.removeShortVideoRange(viewTag, index, count);
+        },
+        removeDataByIndexes: async (indexes: number[]) => {
+          if (!nativeReadyRef.current || nativeRef.current == null) {
+            return;
+          }
+          const viewTag = findNodeHandle(nativeRef.current);
+          if (viewTag == null) {
+            return;
+          }
+          await NativeTuiplayer.removeShortVideoDataByIndexes(viewTag, indexes);
+        },
+        addData: async (source: ShortVideoSource, index = -1) => {
+          if (!nativeReadyRef.current || nativeRef.current == null) {
+            return;
+          }
+          const viewTag = findNodeHandle(nativeRef.current);
+          if (viewTag == null) {
+            return;
+          }
+          const payload = buildSourcePayload(source);
+          await NativeTuiplayer.addShortVideoData(viewTag, payload, index);
+        },
+        addRangeData: async (list: ShortVideoSource[], startIndex = -1) => {
+          if (!nativeReadyRef.current || nativeRef.current == null) {
+            return;
+          }
+          const viewTag = findNodeHandle(nativeRef.current);
+          if (viewTag == null) {
+            return;
+          }
+          const payload = list.map(buildSourcePayload);
+          await NativeTuiplayer.addShortVideoRange(
+            viewTag,
+            payload,
+            startIndex
+          );
+        },
+        replaceData: async (source: ShortVideoSource, index = -1) => {
+          if (!nativeReadyRef.current || nativeRef.current == null) {
+            return;
+          }
+          const viewTag = findNodeHandle(nativeRef.current);
+          if (viewTag == null) {
+            return;
+          }
+          const payload = buildSourcePayload(source);
+          await NativeTuiplayer.replaceShortVideoData(viewTag, payload, index);
+        },
+        replaceRangeData: async (
+          list: ShortVideoSource[],
+          startIndex: number
+        ) => {
+          if (!nativeReadyRef.current || nativeRef.current == null) {
+            return;
+          }
+          const viewTag = findNodeHandle(nativeRef.current);
+          if (viewTag == null) {
+            return;
+          }
+          const payload = list.map(buildSourcePayload);
+          await NativeTuiplayer.replaceShortVideoRange(
+            viewTag,
+            payload,
+            startIndex
+          );
+        },
+        vodPlayer: vodPlayerHandle,
+      }),
+      [buildSourcePayload, runOrQueueNativeCommand, vodPlayerHandle]
+    );
 
     const normalizedLayers = useMemo(() => {
       if (!layers) {
@@ -689,7 +797,7 @@ export const TuiplayerShortVideoView = forwardRef<
       <TuiplayerShortVideoNativeComponent
         ref={nativeRef}
         style={StyleSheet.compose(styles.container, style)}
-        sources={normalizedSources}
+        sources={effectiveSources}
         autoPlay={autoPlay}
         initialIndex={initialIndex}
         paused={paused}
@@ -702,6 +810,7 @@ export const TuiplayerShortVideoView = forwardRef<
         onPageChanged={onPageChanged}
         onEndReached={onEndReached}
         onVodEvent={onVodEvent}
+        onReady={handleNativeReady}
       />
     );
   }

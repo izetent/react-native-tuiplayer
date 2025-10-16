@@ -2,18 +2,18 @@ package com.tuiplayer.shortvideo.layer
 
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.drawable.ColorDrawable
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.TouchDelegate
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.SeekBar
 import android.widget.TextView
-import androidx.core.content.ContextCompat
 import androidx.core.widget.ImageViewCompat
 import com.bumptech.glide.Glide
 import com.tencent.qcloud.tuiplayer.core.api.TUIPlayerController
@@ -34,12 +34,14 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     private const val ACTION_LIKE = "like"
     private const val ACTION_COMMENT = "comment"
     private const val ACTION_FAVORITE = "favorite"
-    private const val PROGRESS_MAX = 1000
   }
 
   private var host: TuiplayerLayerHost? = null
   private var boundSource: TUIVideoSource? = null
 
+  private var bottomRootContainer: LinearLayout? = null
+  private var panelContainer: LinearLayout? = null
+  private var infoRowContainer: LinearLayout? = null
   private var actionContainer: LinearLayout? = null
   private var authorContainer: LinearLayout? = null
   private var avatarView: ImageView? = null
@@ -56,7 +58,8 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
   private var favoriteButton: View? = null
   private var favoriteIconView: ImageView? = null
   private var favoriteCountView: TextView? = null
-  private var progressSeekBar: SeekBar? = null
+  private var watchMoreView: TextView? = null
+  private var progressBar: TuiplayerProgressBarView? = null
   private var pauseIndicatorView: ImageView? = null
   private var followContainer: FrameLayout? = null
 
@@ -77,6 +80,9 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     val root =
       LayoutInflater.from(parent.context).inflate(R.layout.tuiplayer_short_video_overlay_layer, parent, false)
 
+    bottomRootContainer = root.findViewById(R.id.tuiplayer_overlay_bottom_root)
+    panelContainer = root.findViewById(R.id.tuiplayer_overlay_panel_container)
+    infoRowContainer = root.findViewById(R.id.tuiplayer_overlay_info_row)
     actionContainer = root.findViewById(R.id.tuiplayer_overlay_action_container)
     authorContainer = root.findViewById(R.id.tuiplayer_overlay_author_container)
     avatarView = root.findViewById(R.id.tuiplayer_overlay_avatar)
@@ -93,13 +99,14 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     favoriteButton = root.findViewById(R.id.tuiplayer_overlay_favorite)
     favoriteIconView = root.findViewById(R.id.tuiplayer_overlay_favorite_icon)
     favoriteCountView = root.findViewById(R.id.tuiplayer_overlay_favorite_count)
-    progressSeekBar = root.findViewById(R.id.tuiplayer_overlay_progress)
+    watchMoreView = root.findViewById(R.id.tuiplayer_overlay_watch_more)
+    progressBar = root.findViewById(R.id.tuiplayer_overlay_progress)
     pauseIndicatorView = root.findViewById(R.id.tuiplayer_overlay_pause_indicator)
     followContainer = root.findViewById(R.id.tuiplayer_overlay_follow_container)
 
     setupIcons()
     setupListeners()
-    setupSeekBar()
+    setupProgressBar()
     applyScaledLayout()
     setDefaultAvatar()
     updatePauseIndicator(false)
@@ -111,9 +118,8 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     boundSource = videoSource
     isTrackingProgress = false
     videoDurationMs = 0L
-    progressSeekBar?.progress = 0
-    progressSeekBar?.secondaryProgress = 0
-    progressSeekBar?.isEnabled = false
+    progressBar?.reset()
+    progressBar?.isEnabled = false
     refreshMetadata()
     show()
   }
@@ -132,55 +138,59 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
   override fun onPlayPrepare() {
     super.onPlayPrepare()
     updatePauseIndicator(false)
+    progressBar?.setLoadingVisible(true)
   }
 
   override fun onPlayBegin() {
     super.onPlayBegin()
     updatePauseIndicator(false)
+    progressBar?.setLoadingVisible(false)
   }
 
   override fun onPlayPause() {
     super.onPlayPause()
     updatePauseIndicator(true)
+    progressBar?.setLoadingVisible(false)
   }
 
   override fun onPlayStop() {
     super.onPlayStop()
     updatePauseIndicator(true)
+    progressBar?.setLoadingVisible(false)
   }
 
   override fun onPlayLoading() {
     super.onPlayLoading()
     updatePauseIndicator(false)
+    progressBar?.setLoadingVisible(true)
   }
 
   override fun onPlayEnd() {
     super.onPlayEnd()
     updatePauseIndicator(true)
+    progressBar?.setLoadingVisible(false)
   }
 
   override fun onPlayProgress(current: Long, duration: Long, playable: Long) {
     super.onPlayProgress(current, duration, playable)
     videoDurationMs = duration.coerceAtLeast(0L)
-    val seekBar = progressSeekBar ?: return
+    val bar = progressBar ?: return
     if (videoDurationMs <= 0L) {
-      seekBar.progress = 0
-      seekBar.secondaryProgress = 0
-      seekBar.isEnabled = false
+      bar.reset()
+      bar.isEnabled = false
       return
     }
-    seekBar.isEnabled = true
+    bar.isEnabled = true
     val safeDuration = videoDurationMs.coerceAtLeast(1L)
-    val progressValue =
-      ((current.coerceAtLeast(0) * PROGRESS_MAX) / safeDuration).toInt().coerceIn(0, PROGRESS_MAX)
-    val playableValue =
-      ((playable.coerceAtLeast(0) * PROGRESS_MAX) / safeDuration).toInt().coerceIn(0, PROGRESS_MAX)
+    val progressRatio =
+      (current.coerceAtLeast(0).toDouble() / safeDuration.toDouble()).coerceIn(0.0, 1.0).toFloat()
+    val playableRatio =
+      (playable.coerceAtLeast(0).toDouble() / safeDuration.toDouble()).coerceIn(0.0, 1.0).toFloat()
+    bar.setBufferedRatio(playableRatio)
     if (!isTrackingProgress) {
-      seekBar.progress = progressValue
-      seekBar.secondaryProgress = playableValue
-    } else {
-      seekBar.secondaryProgress = playableValue
+      bar.setProgressRatio(progressRatio)
     }
+    progressBar?.setLoadingVisible(false)
   }
 
   override fun tag(): String = TAG
@@ -208,74 +218,68 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     followContainer?.setOnClickListener { dispatchAction(ACTION_FOLLOW) }
   }
 
-  private fun setupSeekBar() {
-    val seekBar = progressSeekBar ?: return
-    seekBar.max = PROGRESS_MAX
-    seekBar.splitTrack = false
-    val context = seekBar.context
-    ContextCompat.getDrawable(context, R.drawable.tui_seekbar_progress)?.mutate()?.let {
-      seekBar.progressDrawable = it
-    }
-    ContextCompat.getDrawable(context, R.drawable.tui_seekbar_thumb)?.mutate()?.let {
-      seekBar.thumb = it
-    }
-    seekBar.thumbTintList = null
-    seekBar.progressTintList = null
-    seekBar.secondaryProgressTintList = null
-    seekBar.progressBackgroundTintList = null
-    seekBar.thumbOffset = PixelHelper.px(8f)
-    seekBar.setPadding(PixelHelper.px(8f), PixelHelper.px(12f), PixelHelper.px(8f), PixelHelper.px(12f))
-    seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-      override fun onProgressChanged(seek: SeekBar, progress: Int, fromUser: Boolean) = Unit
-
-      override fun onStartTrackingTouch(seek: SeekBar) {
+  private fun setupProgressBar() {
+    val bar = progressBar ?: return
+    bar.isEnabled = false
+    bar.setOnSeekListener(object : TuiplayerProgressBarView.OnSeekListener {
+      override fun onSeekStart() {
         isTrackingProgress = true
-        disallowParentIntercept(seek, true)
+        progressBar?.let { disallowParentIntercept(it, true) }
       }
 
-      override fun onStopTrackingTouch(seek: SeekBar) {
+      override fun onSeekChanged(ratio: Float) = Unit
+
+      override fun onSeekFinished(ratio: Float, cancelled: Boolean) {
+        progressBar?.let { disallowParentIntercept(it, false) }
         isTrackingProgress = false
-        disallowParentIntercept(seek, false)
+        if (cancelled) {
+          return
+        }
         val player = getPlayer() as? ITUIVodPlayer ?: return
         val duration = videoDurationMs
         if (duration <= 0L) {
           return
         }
-        val ratio = seek.progress / PROGRESS_MAX.toFloat()
         val targetMs = (duration * ratio).toLong().coerceIn(0, duration)
         player.seekTo(targetMs / 1000f)
+        progressBar?.setProgressRatio(ratio)
       }
     })
+    expandTouchArea(bar, extraTop = PixelHelper.px(8f), extraBottom = PixelHelper.px(12f))
   }
 
   private fun applyScaledLayout() {
-    val bottomMargin = PixelHelper.px(70f)
-    val sideMargin = PixelHelper.px(16f)
+    val bottomOffset = PixelHelper.px(70f)
+    val horizontalPadding = PixelHelper.px(12f)
+    val actionSpacing = PixelHelper.px(8f)
+    val followSpacing = actionSpacing + PixelHelper.px(10f)
+    val stackWidth = PixelHelper.px(36f)
 
-    (actionContainer?.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
-      params.bottomMargin = bottomMargin
-      params.marginEnd = sideMargin
-      params.width = FrameLayout.LayoutParams.WRAP_CONTENT
+    (bottomRootContainer?.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+      params.bottomMargin = bottomOffset
+      bottomRootContainer?.layoutParams = params
+    }
+    panelContainer?.setPadding(0, 0, 0, 0)
+    infoRowContainer?.setPadding(horizontalPadding, 0, horizontalPadding, PixelHelper.px(8f))
+
+    (actionContainer?.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
+      params.marginStart = PixelHelper.px(16f)
+      params.width = stackWidth
       actionContainer?.layoutParams = params
     }
 
-    (authorContainer?.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
-      params.bottomMargin = bottomMargin
-      params.marginStart = sideMargin
-      params.marginEnd = sideMargin
-      authorContainer?.layoutParams = params
-    }
-    authorContainer?.setPaddingRelative(0, 0, PixelHelper.px(80f), 0)
+    authorContainer?.setPadding(0, 0, 0, 0)
 
-    val avatarSize = PixelHelper.px(36f)
-    val followSize = PixelHelper.px(48f)
+    val avatarSize = stackWidth
+    val followSize = stackWidth
     followContainer?.let { container ->
       val params = container.layoutParams
       params.width = followSize
       params.height = followSize
       container.layoutParams = params
       (container.layoutParams as? LinearLayout.LayoutParams)?.let { linearParams ->
-        linearParams.bottomMargin = PixelHelper.px(20f)
+        linearParams.bottomMargin = followSpacing
+        linearParams.width = followSize
         container.layoutParams = linearParams
       }
     }
@@ -288,10 +292,13 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     followBadgeView?.let { badge ->
       (badge.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
         params.gravity = Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM
-        params.bottomMargin = -PixelHelper.px(12f)
+        params.width = avatarSize
+        params.height = FrameLayout.LayoutParams.WRAP_CONTENT
+        params.bottomMargin = -(avatarSize / 2)
         badge.layoutParams = params
       }
       badge.setTextSize(TypedValue.COMPLEX_UNIT_PX, PixelHelper.pxF(24f))
+      badge.gravity = Gravity.CENTER
     }
 
     val iconSize = PixelHelper.px(24f)
@@ -312,9 +319,10 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
       }
     }
 
-    listOfNotNull(likeButton, commentButton).forEach { button ->
+    listOfNotNull(likeButton, commentButton, favoriteButton).forEach { button ->
       (button.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
-        params.bottomMargin = PixelHelper.px(20f)
+        params.topMargin = actionSpacing
+        params.width = followSize
         button.layoutParams = params
       }
     }
@@ -324,11 +332,22 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     titleView?.setTextSize(TypedValue.COMPLEX_UNIT_PX, PixelHelper.pxF(14f))
 
     (authorMoreView?.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
-      params.marginStart = PixelHelper.px(4f)
+      params.marginStart = PixelHelper.px(6f)
       authorMoreView?.layoutParams = params
     }
+    watchMoreView?.apply {
+      setTextSize(TypedValue.COMPLEX_UNIT_PX, PixelHelper.pxF(14f))
+      gravity = Gravity.CENTER_VERTICAL
+      setPadding(horizontalPadding, 0, horizontalPadding, 0)
+      (layoutParams as? LinearLayout.LayoutParams)?.let { params ->
+        params.topMargin = 0
+        params.bottomMargin = 0
+        params.height = PixelHelper.px(36f)
+        layoutParams = params
+      }
+    }
 
-    val availableWidth = PixelHelper.screenWidthPx() - PixelHelper.px(140f)
+    val availableWidth = PixelHelper.screenWidthPx() - PixelHelper.px(160f)
     authorNameView?.maxWidth = max(availableWidth, PixelHelper.px(120f))
     titleView?.maxWidth = max(availableWidth, PixelHelper.px(120f))
 
@@ -337,17 +356,16 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
       titleView?.layoutParams = params
     }
 
-    progressSeekBar?.let { seekBar ->
-      val params = (seekBar.layoutParams as? LinearLayout.LayoutParams) ?: LinearLayout.LayoutParams(
-        ViewGroup.LayoutParams.WRAP_CONTENT,
+    progressBar?.let { bar ->
+      val params = (bar.layoutParams as? LinearLayout.LayoutParams) ?: LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.WRAP_CONTENT
       )
-      params.topMargin = PixelHelper.px(16f)
-      params.width = max(PixelHelper.px(200f), PixelHelper.screenWidthPx() - PixelHelper.px(160f))
-      params.height = PixelHelper.px(6f)
+      params.topMargin = PixelHelper.px(8f)
+      params.bottomMargin = 0
       params.marginStart = 0
-      params.marginEnd = PixelHelper.px(16f)
-      seekBar.layoutParams = params
+      params.marginEnd = 0
+      bar.layoutParams = params
     }
 
     pauseIndicatorView?.layoutParams = pauseIndicatorView?.layoutParams?.apply {
@@ -361,6 +379,26 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     while (parentView is View) {
       parentView.requestDisallowInterceptTouchEvent(disallow)
       parentView = parentView.parent
+    }
+  }
+
+  private fun expandTouchArea(
+    view: View?,
+    extraLeft: Int = 0,
+    extraTop: Int = 0,
+    extraRight: Int = 0,
+    extraBottom: Int = 0
+  ) {
+    val target = view ?: return
+    val parentView = target.parent as? View ?: return
+    parentView.post {
+      val rect = Rect()
+      target.getHitRect(rect)
+      rect.left -= extraLeft
+      rect.top -= extraTop
+      rect.right += extraRight
+      rect.bottom += extraBottom
+      parentView.touchDelegate = TouchDelegate(rect, target)
     }
   }
 

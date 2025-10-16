@@ -58,6 +58,10 @@ export type NativeEvent<T> = Readonly<{
   nativeEvent: NativeEventPayload<T>;
 }>;
 
+export type NativeVoidEvent = Readonly<{
+  nativeEvent: Record<string, never>;
+}>;
+
 export type NativeVodStrategy = Readonly<{
   preloadCount?: Int32;
   preDownloadSize?: Double;
@@ -116,6 +120,7 @@ export interface NativeProps extends ViewProps {
     event: NativeEvent<TuiplayerShortVideoViewPageChangedEvent>
   ) => void;
   onVodEvent?: (event: NativeEvent<TuiplayerVodEvent>) => void;
+  onReady?: (event: NativeVoidEvent) => void;
 }
 
 const COMPONENT_NAME = 'TuiplayerShortVideoView';
