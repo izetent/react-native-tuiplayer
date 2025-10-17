@@ -249,7 +249,7 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
   }
 
   private fun applyScaledLayout() {
-    val bottomOffset = PixelHelper.px(70f)
+    val bottomOffset = PixelHelper.px(0f)
     val horizontalPadding = PixelHelper.px(12f)
     val actionSpacing = PixelHelper.px(8f)
     val followSpacing = actionSpacing + PixelHelper.px(10f)

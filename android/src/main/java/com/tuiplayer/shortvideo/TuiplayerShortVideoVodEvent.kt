@@ -19,7 +19,10 @@ internal class TuiplayerShortVideoVodEvent(
     return Arguments.createMap().apply {
       putString("type", type)
       if (payload != null) {
-        putMap("payload", payload)
+        val payloadCopy = Arguments.createMap().apply {
+          this.merge(payload)
+        }
+        putMap("payload", payloadCopy)
       }
     }
   }
