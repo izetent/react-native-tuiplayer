@@ -145,6 +145,8 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="0dp"
+                            android:gravity="center_horizontal"
+                            android:textAlignment="center"
                             android:text="0"
                             android:textColor="#FFFFFFFF"
                             android:textSize="12sp" />
@@ -171,6 +173,8 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="0dp"
+                            android:gravity="center_horizontal"
+                            android:textAlignment="center"
                             android:text="0"
                             android:textColor="#FFFFFFFF"
                             android:textSize="12sp" />
@@ -197,6 +201,8 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="0dp"
+                            android:gravity="center_horizontal"
+                            android:textAlignment="center"
                             android:text="0"
                             android:textColor="#FFFFFFFF"
                             android:textSize="12sp" />
@@ -228,6 +234,9 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
+        android:background="@drawable/tui_overlay_pause_bg"
+        android:padding="32dp"
+        android:scaleType="center"
         android:visibility="gone"
         android:src="@drawable/tui_ic_play_fill"
         android:contentDescription="@null" />

@@ -35,7 +35,9 @@ internal data class TuiplayerShortVideoSource(
     val commentCount: Long?,
     val favoriteCount: Long?,
     val isLiked: Boolean?,
-    val isBookmarked: Boolean?
+    val isBookmarked: Boolean?,
+    val isFollowed: Boolean?,
+    val watchMoreText: String?
   ) {
     val hasValue: Boolean =
       listOf(
@@ -46,7 +48,9 @@ internal data class TuiplayerShortVideoSource(
         commentCount,
         favoriteCount,
         isLiked,
-        isBookmarked
+        isBookmarked,
+        isFollowed,
+        watchMoreText
       ).any { value ->
         when (value) {
           is String -> value.isNotBlank()

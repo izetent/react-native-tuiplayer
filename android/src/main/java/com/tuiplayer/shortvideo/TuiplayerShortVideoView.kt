@@ -58,16 +58,20 @@ internal class TuiplayerShortVideoView(
   private var lifecycleOwner: LifecycleOwner? = null
   private val lifecycleObserver = object : DefaultLifecycleObserver {
     override fun onResume(owner: LifecycleOwner) {
-      if (autoPlay) {
+      if (appWasPlayingBeforePause && autoPlay && !isManuallyPaused) {
         shortVideoView.resume()
-        if (!isManuallyPaused) {
-          notifyHostLayersPaused(false)
-        }
+        notifyHostLayersPaused(false)
+        this@TuiplayerShortVideoView.flushPendingStartCommand("lifecycle.onResume")
+      } else {
+        notifyHostLayersPaused(true)
       }
+      appWasPlayingBeforePause = false
     }
 
     override fun onPause(owner: LifecycleOwner) {
+      appWasPlayingBeforePause = shouldResumeAfterBackground()
       shortVideoView.pause()
+      currentVodPlayer?.pause()
       notifyHostLayersPaused(true)
     }
 
@@ -77,6 +81,7 @@ internal class TuiplayerShortVideoView(
   }
   private var autoPlay: Boolean = true
   private var isManuallyPaused = false
+  private var appWasPlayingBeforePause = false
   private var isReleased = false
   private var currentSources: MutableList<TuiplayerShortVideoSource> = mutableListOf()
   private var lastEndReachedTotal = -1
@@ -91,6 +96,8 @@ internal class TuiplayerShortVideoView(
     Collections.newSetFromMap(WeakHashMap())
   private var isViewReady = false
   private var pendingResolvedSources: List<Pair<TuiplayerShortVideoSource, TUIPlaySource>>? = null
+  private var pendingStartCommand: PendingStartCommand? = null
+  private var pendingStartRetry: Runnable? = null
 
   private val vodObserver = object : TUIVodObserver {
     override fun onPlayPrepare() {
@@ -217,6 +224,7 @@ internal class TuiplayerShortVideoView(
       detachCurrentVodPlayer()
       currentVodPlayer = player
       player.addPlayerObserver(vodObserver)
+      flushPendingStartCommand("onVodPlayerReady")
     }
 
     override fun onCreateCustomLayer(
@@ -228,6 +236,7 @@ internal class TuiplayerShortVideoView(
 
     override fun onPageChanged(index: Int, model: TUIPlaySource) {
       handlePageChanged(index)
+      flushPendingStartCommand("onPageChanged")
     }
   }
 
@@ -265,24 +274,49 @@ internal class TuiplayerShortVideoView(
   fun setAutoPlay(value: Boolean) {
     autoPlay = value
     if (!autoPlay) {
-      shortVideoView.pause()
+      shortVideoView.pause(true)
       notifyHostLayersPaused(true)
+      if (pendingStartCommand?.forcePlay == false) {
+        pendingStartCommand = null
+        pendingStartRetry?.let { shortVideoView.removeCallbacks(it) }
+        pendingStartRetry = null
+      }
+      appWasPlayingBeforePause = false
     } else if (!isManuallyPaused) {
       shortVideoView.resume()
       notifyHostLayersPaused(false)
+      flushPendingStartCommand("setAutoPlay")
     } else {
       notifyHostLayersPaused(true)
     }
   }
 
   fun setPaused(value: Boolean) {
+    if (isManuallyPaused == value) {
+      if (value) {
+        notifyHostLayersPaused(true)
+      } else if (autoPlay) {
+        notifyHostLayersPaused(false)
+        flushPendingStartCommand("setPaused.unchanged")
+      }
+      return
+    }
     isManuallyPaused = value
     if (value) {
       shortVideoView.pause()
+      currentVodPlayer?.pause()
       notifyHostLayersPaused(true)
+      appWasPlayingBeforePause = false
+      if (pendingStartCommand?.forcePlay == false) {
+        pendingStartCommand = null
+        pendingStartRetry?.let { shortVideoView.removeCallbacks(it) }
+        pendingStartRetry = null
+      }
     } else if (autoPlay) {
       shortVideoView.resume()
       notifyHostLayersPaused(false)
+      flushPendingStartCommand("setPaused")
+      appWasPlayingBeforePause = false
     } else {
       notifyHostLayersPaused(true)
     }
@@ -324,24 +358,39 @@ internal class TuiplayerShortVideoView(
   }
 
   fun setSources(sources: List<TuiplayerShortVideoSource>) {
+    Log.d(TAG, "setSources count=${sources.size} isViewReady=$isViewReady isReleased=$isReleased")
     isReleased = false
     val resolved = resolvePlayableSources(sources)
+    Log.d(TAG, "setSources resolvedCount=${resolved.size}")
+    val wasEmpty = currentSources.isEmpty()
     if (!isViewReady) {
       pendingResolvedSources = resolved
       currentSources = resolved.map { it.first }.toMutableList()
       lastKnownIndex = -1
       lastEndReachedTotal = -1
+      if (wasEmpty && resolved.isNotEmpty() && autoPlay && pendingStartCommand == null) {
+        pendingStartCommand = PendingStartCommand(0, false, false)
+        pendingStartRetry?.let { shortVideoView.removeCallbacks(it) }
+        pendingStartRetry = null
+      }
       return
     }
     applyResolvedSources(resolved)
+    if (wasEmpty && resolved.isNotEmpty() && autoPlay && pendingStartCommand == null) {
+      setPendingStart(0, false, "setSources")
+    } else {
+      flushPendingStartCommand("setSources")
+    }
   }
 
   fun appendSources(sources: List<TuiplayerShortVideoSource>) {
+    Log.d(TAG, "appendSources incoming=${sources.size} isViewReady=$isViewReady")
     val resolved = resolvePlayableSources(sources)
     if (resolved.isEmpty()) {
       Log.w(TAG, "appendSources ignored; no playable entries (incoming=${sources.size})")
       return
     }
+    val wasEmpty = currentSources.isEmpty()
     if (!isViewReady) {
       val pending = (pendingResolvedSources?.toMutableList() ?: mutableListOf())
       pending.addAll(resolved)
@@ -362,6 +411,11 @@ internal class TuiplayerShortVideoView(
       )
     }
     currentSources.addAll(resolved.map { it.first })
+    if (wasEmpty && currentSources.isNotEmpty() && autoPlay && pendingStartCommand == null) {
+      setPendingStart(0, false, "appendSources")
+    } else {
+      flushPendingStartCommand("appendSources")
+    }
   }
 
   private fun applyResolvedSources(
@@ -372,6 +426,51 @@ internal class TuiplayerShortVideoView(
     val previous = currentSources.toList()
     val shouldAppend = shouldAppend(previous, playableSources)
 
+    if (!shouldAppend && previous.isNotEmpty() && previous == playableSources) {
+      flushPendingStartCommand("applyResolvedSources.identity")
+      return
+    }
+
+    if (!shouldAppend && previous.size == playableSources.size && previous.isNotEmpty()) {
+      val manager = dataManagerOrNull()
+      var allMatchPlayableId = true
+      val changedIndices = mutableListOf<Int>()
+
+      for (index in previous.indices) {
+        val oldSource = previous[index]
+        val newSource = playableSources[index]
+        if (oldSource == newSource) {
+          continue
+        }
+        if (oldSource.hasSamePlayableIdentity(newSource)) {
+          currentSources[index] = newSource
+          changedIndices.add(index)
+        } else {
+          allMatchPlayableId = false
+          break
+        }
+      }
+
+      if (allMatchPlayableId) {
+        val currentIndex = getCurrentIndex()
+        changedIndices.forEach { index ->
+          val newSource = currentSources[index]
+          if (index == currentIndex) {
+            hostAwareLayers.forEach { layer ->
+              layer.onMetadataUpdated(newSource)
+            }
+          } else if (manager != null) {
+            newSource.toPlaySource()?.let { model ->
+              manager.replaceData(model, index)
+            }
+          }
+          notifyPlaylistItemChanged(index)
+        }
+        flushPendingStartCommand("applyResolvedSources.inPlace")
+        return
+      }
+    }
+
     if (shouldAppend) {
       val appendedModels = models.subList(previous.size, models.size)
       if (appendedModels.isNotEmpty()) {
@@ -381,6 +480,8 @@ internal class TuiplayerShortVideoView(
             TAG,
             "appendModels (in setSources) failed (result=$result, appended=${appendedModels.size})"
           )
+        } else {
+          Log.d(TAG, "applyResolvedSources appended=${appendedModels.size}")
         }
       }
     } else {
@@ -391,6 +492,8 @@ internal class TuiplayerShortVideoView(
           TAG,
           "setModels failed (result=$result, count=${models.size})"
         )
+      } else {
+        Log.d(TAG, "applyResolvedSources replacedModels count=${models.size}")
       }
       lastEndReachedTotal = -1
 
@@ -427,6 +530,11 @@ internal class TuiplayerShortVideoView(
       ensureInitialPlayback(target, 1)
     }
     pendingResolvedSources = null
+    if (currentSources.isNotEmpty() && previous.isEmpty() && autoPlay && pendingStartCommand == null) {
+      setPendingStart(0, false, "applyResolvedSources")
+    } else {
+      flushPendingStartCommand("applyResolvedSources")
+    }
   }
 
   override fun onAttachedToWindow() {
@@ -436,12 +544,15 @@ internal class TuiplayerShortVideoView(
     shortVideoView.setUserInputEnabled(userInputEnabled)
     applyPageScroller()
     maybeMarkViewReady()
+    flushPendingStartCommand("onAttachedToWindow")
   }
 
   override fun onDetachedFromWindow() {
     super.onDetachedFromWindow()
     shortVideoView.pause()
     notifyHostLayersPaused(true)
+    pendingStartRetry?.let { shortVideoView.removeCallbacks(it) }
+    pendingStartRetry = null
   }
 
   private fun bindLifecycle() {
@@ -466,12 +577,13 @@ internal class TuiplayerShortVideoView(
         return@post
       }
       isViewReady = true
-      Log.d(TAG, "Native view marked ready (tag=$id)")
+      Log.d(TAG, "Native view marked ready (tag=$id) pendingResolved=${pendingResolvedSources?.size ?: 0}")
       pendingResolvedSources?.let {
         applyResolvedSources(it)
       }
       pendingResolvedSources = null
       dispatchReadyEvent()
+      flushPendingStartCommand("maybeMarkViewReady")
     }
   }
 
@@ -488,20 +600,30 @@ internal class TuiplayerShortVideoView(
     themedReactContext.removeLifecycleEventListener(this)
     hostAwareLayers.clear()
     pendingResolvedSources = null
+    pendingStartCommand = null
+    pendingStartRetry?.let { shortVideoView.removeCallbacks(it) }
+    pendingStartRetry = null
   }
 
   override fun onHostResume() {
     bindLifecycle()
-    if (autoPlay && !isManuallyPaused) {
+    if (appWasPlayingBeforePause && autoPlay && !isManuallyPaused) {
       shortVideoView.resume()
       notifyHostLayersPaused(false)
-    } else {
-      notifyHostLayersPaused(true)
+      flushPendingStartCommand("onHostResume")
+      appWasPlayingBeforePause = false
+      return
     }
+    shortVideoView.pause()
+    currentVodPlayer?.pause()
+    notifyHostLayersPaused(true)
+    appWasPlayingBeforePause = false
   }
 
   override fun onHostPause() {
+    appWasPlayingBeforePause = shouldResumeAfterBackground()
     shortVideoView.pause()
+    currentVodPlayer?.pause()
     notifyHostLayersPaused(true)
   }
 
@@ -534,6 +656,9 @@ internal class TuiplayerShortVideoView(
       return
     }
     if (index != lastKnownIndex) {
+      if (isManuallyPaused) {
+        isManuallyPaused = false
+      }
       lastKnownIndex = index
       dispatchPageChanged(index, total)
     }
@@ -567,8 +692,11 @@ internal class TuiplayerShortVideoView(
   }
 
   fun commandStartPlayIndex(index: Int, smooth: Boolean) {
-    shortVideoView.startPlayIndex(index, smooth)
-    lastKnownIndex = index
+    if (tryStartAtIndex(index, smooth, forcePlayOverride = true)) {
+      Log.d(TAG, "commandStartPlayIndex executed index=$index smooth=$smooth")
+      return
+    }
+    setPendingStart(index, smooth, "commandStartPlayIndex", forcePlay = true)
   }
 
   fun commandSetPlayMode(mode: Int) {
@@ -580,9 +708,7 @@ internal class TuiplayerShortVideoView(
   }
 
   fun commandResume() {
-    isManuallyPaused = false
-    shortVideoView.resume()
-    notifyHostLayersPaused(false)
+    setPaused(false)
   }
 
   fun commandSwitchResolution(resolution: Double, target: Int) {
@@ -599,6 +725,28 @@ internal class TuiplayerShortVideoView(
 
   fun commandSetUserInputEnabled(enabled: Boolean) {
     setUserInputEnabled(enabled)
+  }
+
+  fun commandSyncPlaybackState() {
+    val currentIndex = getCurrentIndex()
+    if (autoPlay && !isManuallyPaused) {
+      if (currentIndex != null) {
+        if (!tryStartAtIndex(currentIndex, false, forcePlayOverride = true)) {
+          setPendingStart(currentIndex, false, "commandSyncPlaybackState", forcePlay = true)
+        }
+      }
+      shortVideoView.resume()
+      notifyHostLayersPaused(false)
+      flushPendingStartCommand("commandSyncPlaybackState")
+      appWasPlayingBeforePause = false
+    } else {
+      shortVideoView.pause()
+      notifyHostLayersPaused(true)
+      if (currentIndex != null) {
+        notifyPlaylistItemChanged(currentIndex)
+      }
+      appWasPlayingBeforePause = false
+    }
   }
 
   fun handleVodPlayerCommand(command: String, options: ReadableMap?): Any? {
@@ -758,6 +906,36 @@ internal class TuiplayerShortVideoView(
     val model = source.toPlaySource() ?: return
     manager.replaceData(model, index)
     currentSources[index] = source
+    val currentIndex = getCurrentIndex()
+    if (currentIndex != null && currentIndex == index) {
+      hostAwareLayers.forEach { layer ->
+        layer.onMetadataUpdated(source)
+      }
+    }
+    notifyPlaylistItemChanged(index)
+    flushPendingStartCommand("replaceData")
+  }
+
+  fun updateMetadata(index: Int, metadata: TuiplayerShortVideoSource.Metadata?) {
+    if (index !in currentSources.indices || metadata == null) {
+      return
+    }
+    val existing = currentSources[index]
+    val merged = mergeMetadata(existing.metadata, metadata)
+    val normalized = merged.takeIf { it.hasValue }
+    if (existing.metadata == normalized) {
+      return
+    }
+    currentSources[index] = existing.copy(metadata = normalized)
+    val currentIndex = getCurrentIndex()
+    if (currentIndex != null && currentIndex == index) {
+      hostAwareLayers.forEach { layer ->
+        layer.onMetadataUpdated(currentSources[index])
+      }
+    } else {
+      notifyPlaylistItemChanged(index)
+    }
+    flushPendingStartCommand("updateMetadata")
   }
 
   fun replaceRangeData(sources: List<TuiplayerShortVideoSource>, startIndex: Int) {
@@ -785,6 +963,14 @@ internal class TuiplayerShortVideoView(
     manager.replaceRangeData(models, start)
     for (offset in resolved.indices) {
       currentSources[start + offset] = resolved[offset].first
+    }
+    val currentIndex = getCurrentIndex()
+    if (currentIndex != null && currentIndex in start until (start + resolved.size)) {
+      val source = currentSources[currentIndex]
+      hostAwareLayers.forEach { layer ->
+        layer.onMetadataUpdated(source)
+      }
+      notifyPlaylistItemChanged(currentIndex)
     }
   }
 
@@ -870,6 +1056,27 @@ internal class TuiplayerShortVideoView(
       payload.putInt("index", -1)
     }
     emitVodEvent("overlayAction", payload)
+  }
+
+  override fun requestTogglePlay(): Boolean? {
+    if (isReleased) {
+      return null
+    }
+    val player = currentVodPlayer ?: return null
+    return if (!isManuallyPaused) {
+      setPaused(true)
+      if (player.isPlaying()) {
+        player.pause()
+      }
+      true
+    } else {
+      setPaused(false)
+      if (!autoPlay && !player.isPlaying()) {
+        player.resumePlay()
+        notifyHostLayersPaused(false)
+      }
+      false
+    }
   }
 
   private fun findSourceMatch(model: TUIVideoSource): Pair<Int, TuiplayerShortVideoSource>? {
@@ -971,16 +1178,16 @@ internal class TuiplayerShortVideoView(
   }
 
   private fun scheduleStartAtIndex(index: Int) {
-    shortVideoView.post {
-      if (isReleased) {
-        return@post
-      }
-      shortVideoView.startPlayIndex(index)
-      if (autoPlay && !isManuallyPaused) {
-        shortVideoView.resume()
-        notifyHostLayersPaused(false)
-      }
+    if (tryStartAtIndex(index, false)) {
+      Log.d(TAG, "scheduleStartAtIndex executed index=$index")
+      return
     }
+    val existing = pendingStartCommand
+    if (existing != null && existing.forcePlay && existing.index != index) {
+      Log.d(TAG, "scheduleStartAtIndex respecting manual pending index=${existing.index}")
+      return
+    }
+    setPendingStart(index, false, "scheduleStartAtIndex", forcePlay = existing?.forcePlay == true)
   }
 
   private fun ensureInitialPlayback(index: Int, attempt: Int) {
@@ -997,14 +1204,192 @@ internal class TuiplayerShortVideoView(
       if (currentSources.isEmpty() || index !in currentSources.indices) {
         return@postDelayed
       }
-      shortVideoView.startPlayIndex(index)
-      if (autoPlay && !isManuallyPaused) {
-        shortVideoView.resume()
-        notifyHostLayersPaused(false)
+      if (!tryStartAtIndex(index, false)) {
+        ensureInitialPlayback(index, attempt + 1)
       }
-      ensureInitialPlayback(index, attempt + 1)
     }, INITIAL_PLAYBACK_RETRY_DELAY_MS)
   }
+
+  private fun setPendingStart(index: Int, smooth: Boolean, reason: String, forcePlay: Boolean = false) {
+    val latestSource = shortVideoView.currentModel
+    Log.d(
+      TAG,
+      "setPendingStart index=$index smooth=$smooth forcePlay=$forcePlay reason=$reason pending=${pendingStartCommand?.index} currentModel=${latestSource?.javaClass?.simpleName}")
+    pendingStartCommand = PendingStartCommand(index, smooth, forcePlay)
+    flushPendingStartCommand(reason)
+  }
+
+  private fun tryStartAtIndex(index: Int, smooth: Boolean, forcePlayOverride: Boolean? = null): Boolean {
+    if (isReleased || !isViewReady) {
+      return false
+    }
+    if (index !in currentSources.indices) {
+      Log.d(TAG, "tryStartAtIndex index=$index out_of_range size=${currentSources.size}")
+      return false
+    }
+    if (isManuallyPaused && lastKnownIndex >= 0 && index != lastKnownIndex) {
+      Log.d(TAG, "tryStartAtIndex reset manual pause for new index=$index")
+      isManuallyPaused = false
+    }
+    val adapterTotal = resolveAdapterTotal()
+    val forcePlay = forcePlayOverride ?: pendingStartCommand?.takeIf { it.index == index }?.forcePlay ?: false
+    val currentModelIdentity = shortVideoView.currentModel?.let { model ->
+      if (model is TUIVideoSource) {
+        model.fileId?.takeIf { it.isNotBlank() } ?: model.videoURL
+      } else {
+        model.toString()
+      }
+    }
+    if (adapterTotal >= 0 && index >= adapterTotal) {
+      Log.d(TAG, "tryStartAtIndex waiting adapterTotal=$adapterTotal index=$index currentModel=$currentModelIdentity")
+      return false
+    }
+    shortVideoView.startPlayIndex(index, smooth)
+    Log.d(TAG, "tryStartAtIndex executed index=$index smooth=$smooth forcePlay=$forcePlay currentModel=$currentModelIdentity")
+    if (forcePlay || (autoPlay && !isManuallyPaused)) {
+      isManuallyPaused = false
+      shortVideoView.resume()
+      notifyHostLayersPaused(false)
+    } else {
+      notifyHostLayersPaused(true)
+    }
+    handlePageChanged(index)
+    pendingStartCommand = null
+    pendingStartRetry?.let { shortVideoView.removeCallbacks(it) }
+    pendingStartRetry = null
+    return true
+  }
+
+  private fun flushPendingStartCommand(reason: String) {
+    val pending = pendingStartCommand ?: return
+    if (tryStartAtIndex(pending.index, pending.smooth)) {
+      Log.d(TAG, "flushPendingStartCommand executed reason=$reason index=${pending.index}")
+    } else {
+      Log.d(TAG, "flushPendingStartCommand deferred reason=$reason index=${pending.index}")
+      schedulePendingStartRetry(reason)
+    }
+  }
+
+  private fun schedulePendingStartRetry(reason: String) {
+    val runnable = object : Runnable {
+      override fun run() {
+        flushPendingStartCommand("$reason.retry")
+      }
+    }
+    pendingStartRetry?.let { shortVideoView.removeCallbacks(it) }
+    pendingStartRetry = runnable
+    shortVideoView.postDelayed(runnable, INITIAL_PLAYBACK_RETRY_DELAY_MS)
+  }
+
+  private fun shouldResumeAfterBackground(): Boolean {
+    val player = currentVodPlayer
+    return if (player != null) {
+      try {
+        player.isPlaying()
+      } catch (_: Throwable) {
+        autoPlay && !isManuallyPaused
+      }
+    } else {
+      autoPlay && !isManuallyPaused
+    }
+  }
+
+  private data class PendingStartCommand(
+    val index: Int,
+    val smooth: Boolean,
+    val forcePlay: Boolean
+  )
+
+  private fun resolveAdapterTotal(): Int {
+    val dataManager = shortVideoView.dataManager ?: return -1
+    val candidates = arrayOf(
+      "getTotal",
+      "getTotalCount",
+      "getCurrentDataCount",
+      "getDataCount"
+    )
+    candidates.forEach { methodName ->
+      try {
+        val method = dataManager.javaClass.getMethod(methodName)
+        val result = method.invoke(dataManager)
+        val value = when (result) {
+          is Number -> result.toInt()
+          else -> null
+        }
+        if (value != null) {
+          return value
+        }
+      } catch (_: Throwable) {
+        // Ignore and try next candidate.
+      }
+    }
+    return -1
+  }
+
+  private fun notifyPlaylistItemChanged(index: Int) {
+    val dataManager = shortVideoView.dataManager
+    if (dataManager != null) {
+      val candidates = listOf(
+        Pair("notifyItemDataChanged", true),
+        Pair("notifyItemChanged", true),
+        Pair("notifyDataChanged", false)
+      )
+      for ((methodName, needsIndex) in candidates) {
+        try {
+          val method = if (needsIndex) {
+            dataManager.javaClass.getMethod(methodName, Int::class.javaPrimitiveType)
+          } else {
+            dataManager.javaClass.getMethod(methodName)
+          }
+          if (needsIndex) {
+            method.invoke(dataManager, index)
+          } else {
+            method.invoke(dataManager)
+          }
+          return
+        } catch (_: Throwable) {
+          // Try next
+        }
+      }
+    }
+    // Fallback: request layout/invalidate to ensure UI refresh
+    shortVideoView.post {
+      shortVideoView.requestLayout()
+      shortVideoView.invalidate()
+    }
+}
+
+private fun TuiplayerShortVideoSource.hasSamePlayableIdentity(other: TuiplayerShortVideoSource): Boolean {
+    if (type != other.type) return false
+    return when (type ?: TuiplayerShortVideoSource.SourceType.FILE_ID) {
+      TuiplayerShortVideoSource.SourceType.FILE_ID -> {
+        appId == other.appId &&
+          fileId.equals(other.fileId, ignoreCase = false) &&
+          (url ?: "") == (other.url ?: "")
+      }
+      TuiplayerShortVideoSource.SourceType.URL -> {
+        url == other.url
+      }
+    }
+}
+
+private fun mergeMetadata(
+  current: TuiplayerShortVideoSource.Metadata?,
+  update: TuiplayerShortVideoSource.Metadata
+): TuiplayerShortVideoSource.Metadata {
+  return TuiplayerShortVideoSource.Metadata(
+    authorName = update.authorName ?: current?.authorName,
+    authorAvatar = update.authorAvatar ?: current?.authorAvatar,
+    title = update.title ?: current?.title,
+    likeCount = update.likeCount ?: current?.likeCount,
+    commentCount = update.commentCount ?: current?.commentCount,
+    favoriteCount = update.favoriteCount ?: current?.favoriteCount,
+    isLiked = update.isLiked ?: current?.isLiked,
+    isBookmarked = update.isBookmarked ?: current?.isBookmarked,
+    isFollowed = update.isFollowed ?: current?.isFollowed,
+    watchMoreText = update.watchMoreText ?: current?.watchMoreText
+  )
+}
 
   private fun resolvePlayableSources(
     sources: List<TuiplayerShortVideoSource>
@@ -1540,6 +1925,8 @@ private fun ReadableMap.toShortVideoMetadata(): TuiplayerShortVideoSource.Metada
   val favoriteCount = getDoubleOrNull("favoriteCount")?.toLong()
   val isLiked = getBooleanOrNull("isLiked")
   val isBookmarked = getBooleanOrNull("isBookmarked")
+  val isFollowed = getBooleanOrNull("isFollowed")
+  val watchMoreText = getStringOrNull("watchMoreText")
 
   val metadata = TuiplayerShortVideoSource.Metadata(
     authorName = authorName,
@@ -1549,7 +1936,9 @@ private fun ReadableMap.toShortVideoMetadata(): TuiplayerShortVideoSource.Metada
     commentCount = commentCount,
     favoriteCount = favoriteCount,
     isLiked = isLiked,
-    isBookmarked = isBookmarked
+    isBookmarked = isBookmarked,
+    isFollowed = isFollowed,
+    watchMoreText = watchMoreText
   )
   return metadata.takeIf { it.hasValue }
 }
@@ -1564,5 +1953,7 @@ private fun TuiplayerShortVideoSource.Metadata.toWritableMap(): WritableMap {
   favoriteCount?.let { map.putDouble("favoriteCount", it.toDouble()) }
   isLiked?.let { map.putBoolean("isLiked", it) }
   isBookmarked?.let { map.putBoolean("isBookmarked", it) }
+  isFollowed?.let { map.putBoolean("isFollowed", it) }
+  watchMoreText?.takeIf { it.isNotBlank() }?.let { map.putString("watchMoreText", it) }
   return map
 }

@@ -276,6 +276,10 @@ class TuiplayerShortVideoView: UIView {
     }
   }
 
+  @objc func updateMeta(_ index: NSNumber, meta: [String: Any]) {
+    // iOS demo暂未实现覆盖层，先保留空实现避免命令报错
+  }
+
   @objc func dataCount() -> NSNumber {
     return NSNumber(value: currentModels.count)
   }

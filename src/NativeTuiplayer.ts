@@ -25,6 +25,8 @@ export type ShortVideoSourceMetaPayload = {
   favoriteCount?: number;
   isLiked?: boolean;
   isBookmarked?: boolean;
+  isFollowed?: boolean;
+  watchMoreText?: string;
 };
 
 export type ShortVideoSourcePayload = {

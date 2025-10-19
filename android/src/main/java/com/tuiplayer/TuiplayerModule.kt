@@ -413,6 +413,8 @@ private fun ReadableMap.toShortVideoMetadata(): TuiplayerShortVideoSource.Metada
   val favoriteCount = getDoubleOrNull("favoriteCount")?.toLong()
   val isLiked = getBooleanOrNull("isLiked")
   val isBookmarked = getBooleanOrNull("isBookmarked")
+  val isFollowed = getBooleanOrNull("isFollowed")
+  val watchMoreText = getStringOrNull("watchMoreText")
 
   val metadata = TuiplayerShortVideoSource.Metadata(
     authorName = authorName,
@@ -422,7 +424,9 @@ private fun ReadableMap.toShortVideoMetadata(): TuiplayerShortVideoSource.Metada
     commentCount = commentCount,
     favoriteCount = favoriteCount,
     isLiked = isLiked,
-    isBookmarked = isBookmarked
+    isBookmarked = isBookmarked,
+    isFollowed = isFollowed,
+    watchMoreText = watchMoreText
   )
   return metadata.takeIf { it.hasValue }
 }

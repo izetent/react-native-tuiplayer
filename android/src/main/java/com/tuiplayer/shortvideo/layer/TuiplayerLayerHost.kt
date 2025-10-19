@@ -7,9 +7,11 @@ internal interface TuiplayerLayerHost {
   fun resolveSource(model: TUIVideoSource): TuiplayerShortVideoSource?
   fun resolveIndex(model: TUIVideoSource): Int?
   fun emitOverlayAction(model: TUIVideoSource, action: String)
+  fun requestTogglePlay(): Boolean?
 }
 
 internal interface TuiplayerHostAwareLayer {
   fun attachHost(host: TuiplayerLayerHost)
   fun onPlaybackStateChanged(paused: Boolean) {}
+  fun onMetadataUpdated(source: TuiplayerShortVideoSource?) {}
 }

@@ -26,8 +26,8 @@ internal class TuiplayerProgressBarView @JvmOverloads constructor(
     fun onSeekFinished(ratio: Float, cancelled: Boolean)
   }
 
-  private val collapsedHeightPx = PixelHelper.pxF(6f)
-  private val expandedHeightPx = PixelHelper.pxF(8f)
+  private val collapsedHeightPx = PixelHelper.pxF(4f)
+  private val expandedHeightPx = PixelHelper.pxF(10f)
 
   private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
     color = Color.parseColor("#2DFFFFFF")

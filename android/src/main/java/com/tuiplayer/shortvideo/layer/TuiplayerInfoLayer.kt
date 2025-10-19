@@ -7,9 +7,11 @@ import android.graphics.drawable.ColorDrawable
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.TouchDelegate
+import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -23,6 +25,7 @@ import com.tencent.qcloud.tuiplayer.core.api.ui.view.TUIBaseVideoView
 import com.tencent.qcloud.tuiplayer.core.api.ui.view.TUIVodLayer
 import com.tuiplayer.R
 import com.tuiplayer.shortvideo.TuiplayerShortVideoSource
+import kotlin.math.abs
 import kotlin.math.max
 
 internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
@@ -30,10 +33,11 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
   companion object {
     const val TAG = "TuiplayerInfoLayer"
     private const val ACTION_AUTHOR = "author"
-    private const val ACTION_FOLLOW = "follow"
+    private const val ACTION_AVATAR = "avatar"
     private const val ACTION_LIKE = "like"
     private const val ACTION_COMMENT = "comment"
     private const val ACTION_FAVORITE = "favorite"
+    private const val ACTION_WATCH_MORE = "watchMore"
   }
 
   private var host: TuiplayerLayerHost? = null
@@ -62,7 +66,7 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
   private var progressBar: TuiplayerProgressBarView? = null
   private var pauseIndicatorView: ImageView? = null
   private var followContainer: FrameLayout? = null
-
+  private var pauseIndicatorVisible = false
   private val defaultIconColor = Color.parseColor("#FEFEFE")
   private val likedIconColor = Color.parseColor("#ff4757")
   private val favoriteIconColor = Color.parseColor("#FFD700")
@@ -109,7 +113,62 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     setupProgressBar()
     applyScaledLayout()
     setDefaultAvatar()
+    pauseIndicatorView?.apply {
+      visibility = View.VISIBLE
+      alpha = 0f
+      isClickable = false
+      isFocusable = false
+    }
     updatePauseIndicator(false)
+
+    val viewConfig = ViewConfiguration.get(parent.context)
+    val tapTimeout = ViewConfiguration.getTapTimeout()
+    val touchSlop = viewConfig.scaledTouchSlop
+    var downX = 0f
+    var downY = 0f
+    var downTime = 0L
+    var candidate = false
+
+    root.setOnTouchListener { _, event ->
+      when (event.actionMasked) {
+        MotionEvent.ACTION_DOWN -> {
+          downX = event.rawX
+          downY = event.rawY
+          downTime = event.downTime
+          candidate = !isTapOnInteractiveView(event.rawX, event.rawY)
+          candidate
+        }
+        MotionEvent.ACTION_MOVE -> {
+          if (!candidate) {
+            return@setOnTouchListener false
+          }
+          val dx = abs(event.rawX - downX)
+          val dy = abs(event.rawY - downY)
+          if (dx > touchSlop || dy > touchSlop) {
+            candidate = false
+            return@setOnTouchListener false
+          }
+          true
+        }
+        MotionEvent.ACTION_UP -> {
+          if (!candidate) {
+            return@setOnTouchListener false
+          }
+          candidate = false
+          val withinTime = (event.eventTime - downTime) <= tapTimeout
+          if (withinTime) {
+            handleRootClick()
+            return@setOnTouchListener true
+          }
+          false
+        }
+        MotionEvent.ACTION_CANCEL -> {
+          candidate = false
+          false
+        }
+        else -> false
+      }
+    }
 
     return root
   }
@@ -122,52 +181,78 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     progressBar?.isEnabled = false
     refreshMetadata()
     show()
+    pauseIndicatorVisible = false
+    updatePauseIndicator(false)
   }
 
   override fun onControllerUnBind(controller: TUIPlayerController) {
     super.onControllerUnBind(controller)
     clearAvatar()
     boundSource = null
+    pauseIndicatorVisible = false
+    updatePauseIndicator(false)
+  }
+
+  override fun onExtInfoChanged(videoSource: TUIVideoSource) {
+    super.onExtInfoChanged(videoSource)
+    boundSource = videoSource
+    refreshMetadata()
   }
 
   override fun onViewRecycled(videoView: TUIBaseVideoView) {
     super.onViewRecycled(videoView)
     clearAvatar()
+    pauseIndicatorVisible = false
+    updatePauseIndicator(false)
   }
 
   override fun onPlayPrepare() {
     super.onPlayPrepare()
+    pauseIndicatorVisible = false
     updatePauseIndicator(false)
     progressBar?.setLoadingVisible(true)
   }
 
   override fun onPlayBegin() {
     super.onPlayBegin()
+    pauseIndicatorVisible = false
     updatePauseIndicator(false)
     progressBar?.setLoadingVisible(false)
   }
 
   override fun onPlayPause() {
     super.onPlayPause()
-    updatePauseIndicator(true)
+    if (pauseIndicatorVisible) {
+      updatePauseIndicator(true)
+    }
     progressBar?.setLoadingVisible(false)
   }
 
   override fun onPlayStop() {
     super.onPlayStop()
-    updatePauseIndicator(true)
+    if (pauseIndicatorVisible) {
+      updatePauseIndicator(true)
+    } else {
+      updatePauseIndicator(false)
+    }
     progressBar?.setLoadingVisible(false)
   }
 
   override fun onPlayLoading() {
     super.onPlayLoading()
-    updatePauseIndicator(false)
+    if (!pauseIndicatorVisible) {
+      updatePauseIndicator(false)
+    }
     progressBar?.setLoadingVisible(true)
   }
 
   override fun onPlayEnd() {
     super.onPlayEnd()
-    updatePauseIndicator(true)
+    if (pauseIndicatorVisible) {
+      updatePauseIndicator(true)
+    } else {
+      updatePauseIndicator(false)
+    }
     progressBar?.setLoadingVisible(false)
   }
 
@@ -195,6 +280,10 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
 
   override fun tag(): String = TAG
 
+  override fun onMetadataUpdated(source: TuiplayerShortVideoSource?) {
+    refreshMetadata()
+  }
+
   private fun setupIcons() {
     likeIconView?.setImageResource(R.drawable.tui_ic_heart_fill)
     commentIconView?.setImageResource(R.drawable.tui_ic_chat_fill)
@@ -215,7 +304,16 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     commentButton?.setOnClickListener { dispatchAction(ACTION_COMMENT) }
     favoriteButton?.setOnClickListener { dispatchAction(ACTION_FAVORITE) }
     authorContainer?.setOnClickListener { dispatchAction(ACTION_AUTHOR) }
-    followContainer?.setOnClickListener { dispatchAction(ACTION_FOLLOW) }
+    avatarView?.setOnClickListener { dispatchAction(ACTION_AVATAR) }
+    watchMoreView?.setOnClickListener { dispatchAction(ACTION_WATCH_MORE) }
+
+    val extra = PixelHelper.px(16f)
+    expandTouchArea(likeButton, extraLeft = extra, extraRight = extra)
+    expandTouchArea(commentButton, extraLeft = extra, extraRight = extra)
+    expandTouchArea(favoriteButton, extraLeft = extra, extraRight = extra)
+    expandTouchArea(authorContainer, extraLeft = extra, extraRight = extra)
+    expandTouchArea(avatarView, extraLeft = extra, extraRight = extra)
+    expandTouchArea(watchMoreView, extraLeft = extra, extraRight = extra)
   }
 
   private fun setupProgressBar() {
@@ -249,18 +347,18 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
   }
 
   private fun applyScaledLayout() {
-    val bottomOffset = PixelHelper.px(0f)
+    // val bottomOffset = PixelHelper.px(70f)
     val horizontalPadding = PixelHelper.px(12f)
-    val actionSpacing = PixelHelper.px(8f)
-    val followSpacing = actionSpacing + PixelHelper.px(10f)
+    val actionSpacing = PixelHelper.px(6f)
+    val followSpacing = actionSpacing + PixelHelper.px(14f)
     val stackWidth = PixelHelper.px(36f)
 
     (bottomRootContainer?.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
-      params.bottomMargin = bottomOffset
+      // params.bottomMargin = bottomOffset
       bottomRootContainer?.layoutParams = params
     }
     panelContainer?.setPadding(0, 0, 0, 0)
-    infoRowContainer?.setPadding(horizontalPadding, 0, horizontalPadding, PixelHelper.px(8f))
+    infoRowContainer?.setPadding(horizontalPadding, 0, horizontalPadding, PixelHelper.px(6f))
 
     (actionContainer?.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
       params.marginStart = PixelHelper.px(16f)
@@ -352,7 +450,7 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     titleView?.maxWidth = max(availableWidth, PixelHelper.px(120f))
 
     (titleView?.layoutParams as? LinearLayout.LayoutParams)?.let { params ->
-      params.topMargin = PixelHelper.px(8f)
+      params.topMargin = PixelHelper.px(6f)
       titleView?.layoutParams = params
     }
 
@@ -361,7 +459,7 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
         ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.WRAP_CONTENT
       )
-      params.topMargin = PixelHelper.px(8f)
+      // params.topMargin = PixelHelper.px(8f)
       params.bottomMargin = 0
       params.marginStart = 0
       params.marginEnd = 0
@@ -403,9 +501,21 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
   }
 
   private fun refreshMetadata() {
-    val source = boundSource ?: return
+    val source = resolveCurrentSource() ?: return
     val targetSource = host?.resolveSource(source)
     applyMetadata(targetSource?.metadata, targetSource)
+  }
+
+  private fun resolveCurrentSource(): TUIVideoSource? {
+    val cached = boundSource
+    if (cached != null) {
+      return cached
+    }
+    val resolved = getVideoView()?.videoModel as? TUIVideoSource
+    if (resolved != null) {
+      boundSource = resolved
+    }
+    return resolved
   }
 
   private fun applyMetadata(
@@ -435,13 +545,24 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     val isBookmarked = metadata?.isBookmarked == true
 
     applyIconTint(likeIconView, if (isLiked) likedIconColor else defaultIconColor)
-    likeCountView?.setTextColor(if (isLiked) likedIconColor else defaultIconColor)
+    likeCountView?.setTextColor(defaultIconColor)
 
     applyIconTint(commentIconView, commentIconColor)
     commentCountView?.setTextColor(commentIconColor)
 
     applyIconTint(favoriteIconView, if (isBookmarked) favoriteIconColor else defaultIconColor)
-    favoriteCountView?.setTextColor(if (isBookmarked) favoriteIconColor else defaultIconColor)
+    favoriteCountView?.setTextColor(defaultIconColor)
+
+    val isFollowed = metadata?.isFollowed == true
+    followBadgeView?.visibility = if (isFollowed) View.GONE else View.VISIBLE
+    followContainer?.alpha = 1f
+
+    val watchText = metadata?.watchMoreText?.takeIf { it.isNotBlank() }
+    watchMoreView?.apply {
+      text = watchText ?: ""
+      visibility = if (watchText != null) View.VISIBLE else View.GONE
+      isEnabled = watchText != null
+    }
 
     val avatarUrl = metadata?.authorAvatar
     val videoView = videoView
@@ -463,8 +584,44 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
   }
 
   private fun dispatchAction(action: String) {
-    val source = boundSource ?: return
+    val source = resolveCurrentSource() ?: return
     host?.emitOverlayAction(source, action)
+  }
+
+  private fun handleRootClick() {
+    val toggledPaused = host?.requestTogglePlay()
+    if (toggledPaused != null) {
+      pauseIndicatorVisible = toggledPaused
+      updatePauseIndicator(toggledPaused)
+    }
+  }
+
+  private fun isTapOnInteractiveView(rawX: Float, rawY: Float): Boolean {
+    val interactiveViews = listOf<View?> (
+      likeButton,
+      commentButton,
+      favoriteButton,
+      avatarView,
+      authorContainer,
+      watchMoreView,
+      progressBar
+    )
+    interactiveViews.forEach { view ->
+      if (view != null && view.isShown && view.containsRawPoint(rawX, rawY, PixelHelper.px(16f))) {
+        return true
+      }
+    }
+    return false
+  }
+
+  private fun View.containsRawPoint(rawX: Float, rawY: Float, extra: Int = 0): Boolean {
+    val location = IntArray(2)
+    getLocationOnScreen(location)
+    val left = location[0] - extra
+    val top = location[1] - extra
+    val right = location[0] + width + extra
+    val bottom = location[1] + height + extra
+    return rawX >= left && rawX <= right && rawY >= top && rawY <= bottom
   }
 
   private fun clearAvatar() {
@@ -483,7 +640,20 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
   }
 
   private fun updatePauseIndicator(visible: Boolean) {
-    pauseIndicatorView?.visibility = if (visible) View.VISIBLE else View.GONE
+    val view = pauseIndicatorView ?: return
+    val targetAlpha = if (visible) 1f else 0f
+    if (view.alpha == targetAlpha) {
+      return
+    }
+    view.animate().cancel()
+    view.visibility = View.VISIBLE
+    if (visible) {
+      view.bringToFront()
+    }
+    view.animate()
+      .alpha(targetAlpha)
+      .setDuration(160L)
+      .start()
   }
 
   override fun onPlaybackStateChanged(paused: Boolean) {
@@ -500,11 +670,18 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
   private fun formatCount(count: Long?): String {
     val value = max(0L, count ?: 0L)
     return when {
-      value >= 100_000 -> {
-        val scaled = value / 1000.0
-        val formatted = String.format("%.1f", scaled)
-        val trimmed = if (formatted.endsWith(".0")) formatted.dropLast(2) else formatted
-        "${trimmed}k"
+      value >= 100_000 -> "10w+"
+      value >= 10_000 -> {
+        val scaledTenth = value / 1_000
+        val major = scaledTenth / 10
+        val minor = scaledTenth % 10
+        if (minor == 0L) "${major}w" else "${major}.${minor}w"
+      }
+      value >= 1_000 -> {
+        val scaledTenth = value / 10
+        val major = scaledTenth / 100
+        val minor = (scaledTenth / 10) % 10
+        if (minor == 0L) "${major}k" else "${major}.${minor}k"
       }
       else -> value.toString()
     }

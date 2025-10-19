@@ -19,6 +19,8 @@ export type NativeShortVideoMeta = Readonly<{
   favoriteCount?: Double;
   isLiked?: boolean;
   isBookmarked?: boolean;
+  isFollowed?: boolean;
+  watchMoreText?: string;
 }>;
 
 export type NativeShortVideoSource = Readonly<{
@@ -145,6 +147,12 @@ type NativeCommands = {
   pausePreload: (ref: ComponentType) => void;
   resumePreload: (ref: ComponentType) => void;
   setUserInputEnabled: (ref: ComponentType, enabled: boolean) => void;
+  updateMeta: (
+    ref: ComponentType,
+    index: Int32,
+    meta: NativeShortVideoMeta
+  ) => void;
+  syncPlaybackState: (ref: ComponentType) => void;
 };
 
 export const Commands = codegenNativeCommands<NativeCommands>({
@@ -157,6 +165,8 @@ export const Commands = codegenNativeCommands<NativeCommands>({
     'pausePreload',
     'resumePreload',
     'setUserInputEnabled',
+    'updateMeta',
+    'syncPlaybackState',
   ],
 });
 

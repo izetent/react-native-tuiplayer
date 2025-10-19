@@ -99,6 +99,10 @@ export type ShortVideoOverlayMeta = {
   isLiked?: boolean;
   /** 当前是否已收藏。 */
   isBookmarked?: boolean;
+  /** 当前是否已关注作者。 */
+  isFollowed?: boolean;
+  /** “看全集”按钮展示文案（非空时展示并可点击）。 */
+  watchMoreText?: string;
 };
 
 /**

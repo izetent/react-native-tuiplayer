@@ -21,6 +21,7 @@ import NativeTuiplayer, {
 } from './NativeTuiplayer';
 import TuiplayerShortVideoNativeComponent, {
   type NativeShortVideoSource,
+  type NativeShortVideoMeta,
   type NativeVodStrategy,
   type NativeLiveStrategy,
   type NativePreferredResolution,
@@ -28,6 +29,7 @@ import TuiplayerShortVideoNativeComponent, {
 } from './TuiplayerShortVideoViewNativeComponent';
 import type {
   ShortVideoSource,
+  ShortVideoOverlayMeta,
   TuiplayerLicenseConfig,
   TuiplayerVodStrategyOptions,
   TuiplayerLiveStrategyOptions,
@@ -207,6 +209,14 @@ export type TuiplayerShortVideoViewHandle = {
    * 运行时启用或禁用用户滑动手势。
    */
   setUserInputEnabled: (enabled: boolean) => void;
+  /**
+   * 在页面切换等场景下同步播放状态，避免黑屏或意外恢复播放。
+   */
+  syncPlaybackState: () => void;
+  /**
+   * 更新指定索引的视频元信息（点赞、评论数等）。
+   */
+  updateMeta: (index: number, meta: ShortVideoOverlayMeta) => void;
   /**
    * 获取当前正在播放的短视频信息。
    */
@@ -662,6 +672,16 @@ export const TuiplayerShortVideoView = forwardRef<
             Commands.setUserInputEnabled(view, enabled);
           });
         },
+        syncPlaybackState: () => {
+          runOrQueueNativeCommand((view) => {
+            Commands.syncPlaybackState(view);
+          });
+        },
+        updateMeta: (index: number, meta: ShortVideoOverlayMeta) => {
+          runOrQueueNativeCommand((view) => {
+            Commands.updateMeta(view, index, normalizeOverlayMeta(meta));
+          });
+        },
         getCurrentSource: async () => {
           if (!nativeReadyRef.current || nativeRef.current == null) {
             return null;
@@ -841,4 +861,32 @@ function normalizePreferredResolution(value: PreferredResolution | undefined) {
     width: value.width,
     height: value.height,
   } satisfies NativePreferredResolution;
+}
+
+function normalizeOverlayMeta(
+  meta: ShortVideoOverlayMeta
+): NativeShortVideoMeta {
+  return {
+    authorName: meta.authorName,
+    authorAvatar: meta.authorAvatar,
+    title: meta.title,
+    likeCount:
+      typeof meta.likeCount === 'number' && Number.isFinite(meta.likeCount)
+        ? meta.likeCount
+        : undefined,
+    commentCount:
+      typeof meta.commentCount === 'number' &&
+      Number.isFinite(meta.commentCount)
+        ? meta.commentCount
+        : undefined,
+    favoriteCount:
+      typeof meta.favoriteCount === 'number' &&
+      Number.isFinite(meta.favoriteCount)
+        ? meta.favoriteCount
+        : undefined,
+    isLiked: meta.isLiked,
+    isBookmarked: meta.isBookmarked,
+    isFollowed: meta.isFollowed,
+    watchMoreText: meta.watchMoreText,
+  };
 }
