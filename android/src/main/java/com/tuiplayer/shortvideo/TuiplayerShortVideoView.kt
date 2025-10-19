@@ -5,7 +5,10 @@ package com.tuiplayer.shortvideo
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.util.Log
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
+import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -98,6 +101,19 @@ internal class TuiplayerShortVideoView(
   private var pendingResolvedSources: List<Pair<TuiplayerShortVideoSource, TUIPlaySource>>? = null
   private var pendingStartCommand: PendingStartCommand? = null
   private var pendingStartRetry: Runnable? = null
+  private var hasDispatchedTopReached = false
+  private var lastKnownScrollOffset = 0
+  private var topDragPointerId = MotionEvent.INVALID_POINTER_ID
+  private var topDragInitialY = 0f
+  private var topDragTriggered = false
+  private val topTouchSlop: Int = ViewConfiguration.get(themedReactContext).scaledTouchSlop
+
+  private val scrollChangedListener = ViewTreeObserver.OnScrollChangedListener {
+    val offset = shortVideoView.computeVerticalScrollOffset()
+    val delta = offset - lastKnownScrollOffset
+    lastKnownScrollOffset = offset
+    handleScrollBoundaries(offset, delta)
+  }
 
   private val vodObserver = object : TUIVodObserver {
     override fun onPlayPrepare() {
@@ -252,6 +268,8 @@ internal class TuiplayerShortVideoView(
     themedReactContext.addLifecycleEventListener(this)
     applyStrategies()
     shortVideoView.setListener(shortVideoListener)
+    lastKnownScrollOffset = shortVideoView.computeVerticalScrollOffset()
+    shortVideoView.viewTreeObserver.addOnScrollChangedListener(scrollChangedListener)
   }
 
   private fun applyStrategies() {
@@ -360,8 +378,16 @@ internal class TuiplayerShortVideoView(
   fun setSources(sources: List<TuiplayerShortVideoSource>) {
     Log.d(TAG, "setSources count=${sources.size} isViewReady=$isViewReady isReleased=$isReleased")
     isReleased = false
+    shortVideoView.viewTreeObserver.apply {
+      if (isAlive) {
+        removeOnScrollChangedListener(scrollChangedListener)
+        addOnScrollChangedListener(scrollChangedListener)
+      }
+    }
     val resolved = resolvePlayableSources(sources)
     Log.d(TAG, "setSources resolvedCount=${resolved.size}")
+    hasDispatchedTopReached = false
+    lastKnownScrollOffset = shortVideoView.computeVerticalScrollOffset()
     val wasEmpty = currentSources.isEmpty()
     if (!isViewReady) {
       pendingResolvedSources = resolved
@@ -390,6 +416,14 @@ internal class TuiplayerShortVideoView(
       Log.w(TAG, "appendSources ignored; no playable entries (incoming=${sources.size})")
       return
     }
+    shortVideoView.viewTreeObserver.apply {
+      if (isAlive) {
+        removeOnScrollChangedListener(scrollChangedListener)
+        addOnScrollChangedListener(scrollChangedListener)
+      }
+    }
+    hasDispatchedTopReached = false
+    lastKnownScrollOffset = shortVideoView.computeVerticalScrollOffset()
     val wasEmpty = currentSources.isEmpty()
     if (!isViewReady) {
       val pending = (pendingResolvedSources?.toMutableList() ?: mutableListOf())
@@ -603,6 +637,12 @@ internal class TuiplayerShortVideoView(
     pendingStartCommand = null
     pendingStartRetry?.let { shortVideoView.removeCallbacks(it) }
     pendingStartRetry = null
+    hasDispatchedTopReached = false
+    lastKnownScrollOffset = 0
+    val observer = shortVideoView.viewTreeObserver
+    if (observer.isAlive) {
+      observer.removeOnScrollChangedListener(scrollChangedListener)
+    }
   }
 
   override fun onHostResume() {
@@ -629,6 +669,60 @@ internal class TuiplayerShortVideoView(
 
   override fun onHostDestroy() {
     releaseInternal()
+  }
+
+  override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+    when (ev.actionMasked) {
+      MotionEvent.ACTION_DOWN -> {
+        topDragPointerId = ev.getPointerId(0)
+        topDragInitialY = ev.getY(0)
+        topDragTriggered = false
+        hasDispatchedTopReached = false
+      }
+      MotionEvent.ACTION_POINTER_DOWN -> {
+        if (topDragPointerId == MotionEvent.INVALID_POINTER_ID) {
+          val index = ev.actionIndex
+          topDragPointerId = ev.getPointerId(index)
+          topDragInitialY = ev.getY(index)
+          topDragTriggered = false
+        }
+      }
+      MotionEvent.ACTION_MOVE -> {
+        val pointerId = topDragPointerId
+        if (pointerId != MotionEvent.INVALID_POINTER_ID) {
+          val pointerIndex = ev.findPointerIndex(pointerId)
+          if (pointerIndex != -1) {
+            val currentY = ev.getY(pointerIndex)
+            val dy = currentY - topDragInitialY
+            if (!topDragTriggered && dy > topTouchSlop) {
+              if (!shortVideoView.canScrollVertically(-1)) {
+                val offset = shortVideoView.computeVerticalScrollOffset()
+                lastKnownScrollOffset = offset
+                dispatchTopReachedInternal(offset, 0)
+                hasDispatchedTopReached = true
+                topDragTriggered = true
+              }
+            } else if (dy < -topTouchSlop) {
+              topDragTriggered = false
+            }
+          }
+        }
+      }
+      MotionEvent.ACTION_POINTER_UP -> {
+        val pointerId = ev.getPointerId(ev.actionIndex)
+        if (pointerId == topDragPointerId) {
+          val newIndex = if (ev.actionIndex == 0 && ev.pointerCount > 1) 1 else 0
+          topDragPointerId = if (newIndex < ev.pointerCount) ev.getPointerId(newIndex) else MotionEvent.INVALID_POINTER_ID
+          topDragInitialY = if (newIndex < ev.pointerCount) ev.getY(newIndex) else 0f
+          topDragTriggered = false
+        }
+      }
+      MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+        topDragPointerId = MotionEvent.INVALID_POINTER_ID
+        topDragTriggered = false
+      }
+    }
+    return super.dispatchTouchEvent(ev)
   }
 
   private fun shouldAppend(
@@ -686,6 +780,7 @@ internal class TuiplayerShortVideoView(
   companion object {
     private const val TAG = "TuiplayerShortVideoView"
     private const val END_REACHED_THRESHOLD = 2
+    private const val TOP_REACHED_THRESHOLD = 2
     private const val MAX_EVENT_RETRY = 5
     private const val MAX_START_RETRY = 5
     private const val INITIAL_PLAYBACK_RETRY_DELAY_MS = 120L
@@ -729,6 +824,9 @@ internal class TuiplayerShortVideoView(
 
   fun commandSyncPlaybackState() {
     val currentIndex = getCurrentIndex()
+    if (isManuallyPaused) {
+        isManuallyPaused = false
+    }
     if (autoPlay && !isManuallyPaused) {
       if (currentIndex != null) {
         if (!tryStartAtIndex(currentIndex, false, forcePlayOverride = true)) {
@@ -1357,7 +1455,27 @@ internal class TuiplayerShortVideoView(
       shortVideoView.requestLayout()
       shortVideoView.invalidate()
     }
-}
+  }
+
+  private fun handleScrollBoundaries(offset: Int, deltaY: Int) {
+    val extent = shortVideoView.computeVerticalScrollExtent()
+    val range = shortVideoView.computeVerticalScrollRange()
+    val atTop = offset <= TOP_REACHED_THRESHOLD || range <= extent
+
+    if (deltaY >= 0) {
+      if (!atTop && hasDispatchedTopReached) {
+        hasDispatchedTopReached = false
+      }
+      return
+    }
+
+    if (atTop && !hasDispatchedTopReached) {
+      dispatchTopReachedInternal(offset, 0)
+      hasDispatchedTopReached = true
+    } else if (!atTop) {
+      hasDispatchedTopReached = false
+    }
+  }
 
 private fun TuiplayerShortVideoSource.hasSamePlayableIdentity(other: TuiplayerShortVideoSource): Boolean {
     if (type != other.type) return false
@@ -1456,6 +1574,28 @@ private fun mergeMetadata(
     }
   }
 
+  private fun dispatchTopReachedInternal(offset: Int, retry: Int) {
+    if (id == View.NO_ID) {
+      if (retry >= MAX_EVENT_RETRY) {
+        Log.w(TAG, "Abandon topReached event, view id not ready")
+        return
+      }
+      shortVideoView.post { dispatchTopReachedInternal(offset, retry + 1) }
+      return
+    }
+    val dispatcher = resolveEventDispatcher()
+    if (dispatcher != null) {
+      emitTopReached(dispatcher, offset)
+    } else if (retry < MAX_EVENT_RETRY) {
+      shortVideoView.post { dispatchTopReachedInternal(offset, retry + 1) }
+    } else {
+      Log.w(
+        TAG,
+        "Failed to dispatch topReached after retries (surfaceId=${resolveSurfaceId()}, tag=$id)"
+      )
+    }
+  }
+
   private fun dispatchReadyEvent(retry: Int = 0) {
     if (id == View.NO_ID) {
       if (retry >= MAX_EVENT_RETRY) {
@@ -1500,6 +1640,13 @@ private fun mergeMetadata(
     val surfaceId = resolveSurfaceId()
     dispatcher.dispatchEvent(
       TuiplayerShortVideoEndReachedEvent(surfaceId, id, index, total)
+    )
+  }
+
+  private fun emitTopReached(dispatcher: EventDispatcher, offset: Int) {
+    val surfaceId = resolveSurfaceId()
+    dispatcher.dispatchEvent(
+      TuiplayerShortVideoTopReachedEvent(surfaceId, id, offset)
     )
   }
 

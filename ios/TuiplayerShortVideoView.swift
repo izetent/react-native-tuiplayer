@@ -32,6 +32,7 @@ class TuiplayerShortVideoView: UIView {
   @objc var onVodEvent: RCTDirectEventBlock?
   private var lastEndReachedTotal: Int = -1
   private var lastPageIndex: Int = -1
+  @objc var onTopReached: RCTDirectEventBlock?
   @objc var autoPlay: NSNumber = true {
     didSet {
       isAutoPlayEnabled = autoPlay.boolValue

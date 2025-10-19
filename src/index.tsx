@@ -299,6 +299,11 @@ export type TuiplayerShortVideoViewProps = {
       total: number;
     };
   }) => void;
+  onTopReached?: (event: {
+    nativeEvent: {
+      offset: number;
+    };
+  }) => void;
   onEndReached?: (event: {
     nativeEvent: {
       index: number;
@@ -336,6 +341,7 @@ export const TuiplayerShortVideoView = forwardRef<
       vodStrategy,
       liveStrategy,
       onPageChanged,
+      onTopReached,
       onEndReached,
       onVodEvent,
       onReady: onReadyProp,
@@ -828,6 +834,7 @@ export const TuiplayerShortVideoView = forwardRef<
         vodStrategy={normalizedVodStrategy}
         liveStrategy={normalizedLiveStrategy}
         onPageChanged={onPageChanged}
+        onTopReached={onTopReached}
         onEndReached={onEndReached}
         onVodEvent={onVodEvent}
         onReady={handleNativeReady}

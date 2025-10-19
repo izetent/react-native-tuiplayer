@@ -607,6 +607,16 @@ export default function App() {
     loadMoreRemote();
   }, [loadMoreRemote]);
 
+  const handleTopReached = useCallback(
+    (event: { nativeEvent: { offset: number } }) => {
+      console.log(
+        '[ShortVideo] 已滑动到顶部，可下拉刷新',
+        event.nativeEvent.offset
+      );
+    },
+    []
+  );
+
   const applyOverlayMeta = useCallback(
     (
       index: number,
@@ -1176,6 +1186,7 @@ export default function App() {
         userInputEnabled={userInputEnabled}
         pageScrollMsPerInch={25}
         vodStrategy={{ renderMode: 0 }}
+        onTopReached={handleTopReached}
         onEndReached={handleEndReached}
         onPageChanged={handlePageChanged}
         onVodEvent={handleVodEvent}

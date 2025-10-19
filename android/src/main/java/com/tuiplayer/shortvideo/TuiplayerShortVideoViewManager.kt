@@ -91,6 +91,7 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
     return mutableMapOf(
       TuiplayerShortVideoPageChangedEvent.EVENT_NAME to mapOf("registrationName" to "onPageChanged"),
       TuiplayerShortVideoEndReachedEvent.EVENT_NAME to mapOf("registrationName" to "onEndReached"),
+      TuiplayerShortVideoTopReachedEvent.EVENT_NAME to mapOf("registrationName" to "onTopReached"),
       TuiplayerShortVideoVodEvent.EVENT_NAME to mapOf("registrationName" to "onVodEvent"),
       TuiplayerShortVideoReadyEvent.EVENT_NAME to mapOf("registrationName" to "onReady")
     )

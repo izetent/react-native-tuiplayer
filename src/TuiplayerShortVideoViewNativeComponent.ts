@@ -94,6 +94,10 @@ export interface TuiplayerShortVideoViewEndReachedEvent {
   total: Int32;
 }
 
+export interface TuiplayerShortVideoViewTopReachedEvent {
+  offset: Int32;
+}
+
 export interface TuiplayerShortVideoViewPageChangedEvent {
   index: Int32;
   total: Int32;
@@ -115,6 +119,9 @@ export interface NativeProps extends ViewProps {
   layers?: NativeLayerConfig;
   vodStrategy?: NativeVodStrategy;
   liveStrategy?: NativeLiveStrategy;
+  onTopReached?: (
+    event: NativeEvent<TuiplayerShortVideoViewTopReachedEvent>
+  ) => void;
   onEndReached?: (
     event: NativeEvent<TuiplayerShortVideoViewEndReachedEvent>
   ) => void;
