@@ -32,6 +32,7 @@ class TuiplayerShortVideoView: UIView {
   @objc var onVodEvent: RCTDirectEventBlock?
   private var lastEndReachedTotal: Int = -1
   private var lastPageIndex: Int = -1
+  @objc var onTopReached: RCTDirectEventBlock?
   @objc var autoPlay: NSNumber = true {
     didSet {
       isAutoPlayEnabled = autoPlay.boolValue
@@ -274,6 +275,10 @@ class TuiplayerShortVideoView: UIView {
       }
       self.refreshModels()
     }
+  }
+
+  @objc func updateMeta(_ index: NSNumber, meta: [String: Any]) {
+    // iOS demo暂未实现覆盖层，先保留空实现避免命令报错
   }
 
   @objc func dataCount() -> NSNumber {

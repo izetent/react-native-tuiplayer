@@ -383,6 +383,7 @@ private fun ReadableMap.toShortVideoSource(): TuiplayerShortVideoSource? {
   } else {
     null
   }
+  val metadata = getMapOrNull("meta")?.toShortVideoMetadata()
   if (type == TuiplayerShortVideoSource.SourceType.FILE_ID && fileId.isNullOrBlank()) {
     return null
   }
@@ -398,6 +399,34 @@ private fun ReadableMap.toShortVideoSource(): TuiplayerShortVideoSource? {
     pSign = pSign,
     extViewType = extViewType,
     autoPlay = autoPlay,
-    videoConfig = videoConfig
+    videoConfig = videoConfig,
+    metadata = metadata
   )
+}
+
+private fun ReadableMap.toShortVideoMetadata(): TuiplayerShortVideoSource.Metadata? {
+  val authorName = getStringOrNull("authorName")
+  val authorAvatar = getStringOrNull("authorAvatar")
+  val title = getStringOrNull("title")
+  val likeCount = getDoubleOrNull("likeCount")?.toLong()
+  val commentCount = getDoubleOrNull("commentCount")?.toLong()
+  val favoriteCount = getDoubleOrNull("favoriteCount")?.toLong()
+  val isLiked = getBooleanOrNull("isLiked")
+  val isBookmarked = getBooleanOrNull("isBookmarked")
+  val isFollowed = getBooleanOrNull("isFollowed")
+  val watchMoreText = getStringOrNull("watchMoreText")
+
+  val metadata = TuiplayerShortVideoSource.Metadata(
+    authorName = authorName,
+    authorAvatar = authorAvatar,
+    title = title,
+    likeCount = likeCount,
+    commentCount = commentCount,
+    favoriteCount = favoriteCount,
+    isLiked = isLiked,
+    isBookmarked = isBookmarked,
+    isFollowed = isFollowed,
+    watchMoreText = watchMoreText
+  )
+  return metadata.takeIf { it.hasValue }
 }

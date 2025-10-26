@@ -15,6 +15,7 @@ import {
   TuiplayerListPlayMode,
   TuiplayerResolutionType,
   type ShortVideoSource,
+  type ShortVideoOverlayMeta,
   type TuiplayerShortVideoViewHandle,
   type VodPlayerSupportResolution,
 } from 'react-native-tuiplayer';
@@ -28,18 +29,31 @@ type Video = {
   cover?: string;
   episode?: number;
   links720p?: string[] | string;
+  authorName?: string;
+  authorAvatar?: string;
+  details?: string;
+  type?: string;
+  isLiked?: number;
   [key: string]: unknown;
 };
 
 const FEATURE_ENDPOINT = 'http://175.178.78.190/dramango/v1/video/feature';
-const AUTHORIZATION_TOKEN =
+const GET_TOKEN_ENDPOINT = 'http://175.178.78.190/dramango/v1/auth/login';
+const tokenParams = {
+  user: 'user' + Date.now(),
+  password: 'userpassword',
+};
+let authorizationToken =
   'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiIxMDM0NSIsInVuaW9uSWQiOiIiLCJleHAiOjE3NjA4NzIyMDQuMTIyMzU2LCJpYXQiOjE3NjAyNjc0MDQuMTIyMzU3LCJpc3MiOiJEcmFtYVgifQ.AbjXiT-mgOOJFNMdNM2OhMvm7FSSqPVrVdwHbKApsCU';
 const PAGE_SIZE = 10;
 
-const API_HEADERS = {
+const buildApiHeaders = (): Record<
+  'Content-Type' | 'Authorization',
+  string
+> => ({
   'Content-Type': 'application/json',
-  'Authorization': AUTHORIZATION_TOKEN,
-} as const;
+  'Authorization': authorizationToken,
+});
 
 const extractVideoList = (payload: unknown): Video[] => {
   if (Array.isArray(payload)) {
@@ -94,6 +108,52 @@ const extractVideoList = (payload: unknown): Video[] => {
   return [];
 };
 
+const TOKEN_CONTAINER_KEYS = ['body', 'data', 'result', 'payload'] as const;
+const TOKEN_VALUE_KEYS = [
+  'token',
+  'authToken',
+  'authorization',
+  'accessToken',
+  'access_token',
+  'jwt',
+  'jwtToken',
+] as const;
+
+const extractTokenFromPayload = (payload: unknown): string | null => {
+  if (typeof payload === 'string') {
+    const trimmed = payload.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (Array.isArray(payload)) {
+    for (const item of payload) {
+      const candidate = extractTokenFromPayload(item);
+      if (candidate) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+  const container = payload as Record<string, unknown>;
+  for (const key of TOKEN_VALUE_KEYS) {
+    const value = container[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  for (const key of TOKEN_CONTAINER_KEYS) {
+    if (key in container) {
+      const nested = extractTokenFromPayload(container[key]);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  return null;
+};
+
 const buildVideoSource = (video: Video): ShortVideoSource | null => {
   const rawLinks = video.links720p;
   let rawUrl: string | undefined;
@@ -126,27 +186,166 @@ const buildVideoSource = (video: Video): ShortVideoSource | null => {
     (value): value is string => typeof value === 'string' && value.length > 0
   );
 
+  const authorName =
+    pickString(
+      video.authorName,
+      video.author,
+      video.uploader,
+      video.source,
+      video.name
+    ) ?? '官方账号';
+  const authorAvatar = pickString(
+    video.authorAvatar,
+    video.avatar,
+    video.icon,
+    video.img
+  );
   return {
     type: 'url',
     url: resolvedUrl,
     coverPictureUrl,
     autoPlay: true,
+    meta: {
+      authorName,
+      authorAvatar,
+      title: video.details,
+      watchMoreText: `观看全集>>第${video.episode ?? 1}集`,
+      likeCount: pickNumber(video.likeCount, video.likes) || 11010,
+      commentCount: pickNumber(video.commentCount, video.comments) || 999,
+      favoriteCount:
+        pickNumber(video.favoriteCount, video.collectCount) || 9999,
+      isLiked: pickBoolean(video.isLiked, video.liked),
+      isBookmarked: pickBoolean(video.isBookmarked, video.favorited),
+      isFollowed: pickBoolean(video.isFollowed, video.followed),
+    },
   };
 };
+
+const pickString = (...values: unknown[]): string | undefined => {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return undefined;
+};
+
+const pickNumber = (...values: unknown[]): number | undefined => {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+  return undefined;
+};
+
+const ensureNumber = (value: unknown, fallback = 0): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return fallback;
+};
+
+const pickBoolean = (...values: unknown[]): boolean | undefined => {
+  for (const value of values) {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      if (value === 1) {
+        return true;
+      }
+      if (value === 0) {
+        return false;
+      }
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (['1', 'true', 'yes', 'y'].includes(normalized)) {
+        return true;
+      }
+      if (['0', 'false', 'no', 'n'].includes(normalized)) {
+        return false;
+      }
+    }
+  }
+  return undefined;
+};
+
+async function refreshAuthorizationToken(): Promise<string> {
+  const payload = {
+    ...tokenParams,
+    user: 'user' + Date.now(),
+  };
+  const response = await fetch(GET_TOKEN_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => '');
+    throw new Error(`刷新 token 接口返回错误 ${response.status}: ${message}`);
+  }
+
+  const tokenPayload = await response.json().catch(() => {
+    throw new Error('刷新 token 接口返回了非 JSON 数据');
+  });
+  const rawToken = extractTokenFromPayload(tokenPayload);
+  if (!rawToken) {
+    throw new Error('刷新 token 接口未返回 token');
+  }
+  const formattedToken = rawToken.startsWith('Bearer ')
+    ? rawToken
+    : `Bearer ${rawToken}`;
+  authorizationToken = formattedToken;
+  console.info('[ShortVideo] token 已更新');
+  return formattedToken;
+}
 
 async function requestFeaturedVideos(
   page: number,
   limit: number = PAGE_SIZE
 ): Promise<Video[]> {
-  const response = await fetch(FEATURE_ENDPOINT, {
-    method: 'POST',
-    headers: API_HEADERS,
-    body: JSON.stringify({
-      page,
-      limit,
-    }),
-    credentials: 'include',
-  });
+  const performRequest = () =>
+    fetch(FEATURE_ENDPOINT, {
+      method: 'POST',
+      headers: buildApiHeaders(),
+      body: JSON.stringify({
+        page,
+        limit,
+      }),
+      credentials: 'include',
+    });
+
+  let response = await performRequest();
+
+  if (response.status === 401) {
+    try {
+      await refreshAuthorizationToken();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error ?? '未知错误');
+      throw new Error(`刷新 token 失败: ${message}`);
+    }
+    response = await performRequest();
+  }
+
   if (!response.ok) {
     const message = await response.text().catch(() => '');
     throw new Error(`接口返回错误 ${response.status}: ${message}`);
@@ -408,13 +607,150 @@ export default function App() {
     loadMoreRemote();
   }, [loadMoreRemote]);
 
+  const handleTopReached = useCallback(
+    (event: { nativeEvent: { offset: number } }) => {
+      console.log(
+        '[ShortVideo] 已滑动到顶部，可下拉刷新',
+        event.nativeEvent.offset
+      );
+    },
+    []
+  );
+
+  const applyOverlayMeta = useCallback(
+    (
+      index: number,
+      producer: (current: ShortVideoSource) => ShortVideoSource | null
+    ) => {
+      let nextMeta: ShortVideoOverlayMeta | null = null;
+      setSources((prev) => {
+        if (!Number.isInteger(index) || index < 0 || index >= prev.length) {
+          return prev;
+        }
+        const current = prev[index]!;
+        const updated = producer(current);
+        if (!updated) {
+          return prev;
+        }
+        if (updated === current) {
+          return prev;
+        }
+        nextMeta = updated.meta ?? null;
+        const next = prev.slice();
+        next[index] = updated;
+        return next;
+      });
+      if (nextMeta) {
+        try {
+          playerRef.current?.updateMeta(index, nextMeta);
+        } catch (error) {
+          console.warn('[ShortVideo] 更新原生 Meta 失败:', error);
+        }
+      }
+    },
+    []
+  );
+
+  const handleOverlayAction = useCallback(
+    (payload?: Record<string, unknown>) => {
+      const action =
+        typeof payload?.action === 'string' ? payload.action : undefined;
+      const indexRaw = payload?.index;
+      const index =
+        typeof indexRaw === 'number' && Number.isInteger(indexRaw)
+          ? indexRaw
+          : -1;
+      if (index < 0 || action == null) {
+        return;
+      }
+      applyOverlayMeta(index, (current) => {
+        const nativeMeta = (payload?.source as { meta?: ShortVideoOverlayMeta })
+          ?.meta;
+        const baseMeta: ShortVideoOverlayMeta = {
+          ...(current.meta ?? {}),
+          ...(nativeMeta ?? {}),
+        };
+        switch (action) {
+          case 'watchMore': {
+            console.log(
+              '[ShortVideo] 点击观看更多，当前状态：',
+              baseMeta.watchMoreText
+            );
+            return {
+              ...current,
+            };
+          }
+          case 'like': {
+            const liked = baseMeta.isLiked ?? false;
+            const base = ensureNumber(baseMeta.likeCount, 0);
+            console.log('[ShortVideo] 点赞操作，当前状态：', liked);
+
+            return {
+              ...current,
+              meta: {
+                ...baseMeta,
+                isLiked: !liked,
+                likeCount: Math.max(0, base + (liked ? -1 : 1)),
+              },
+            };
+          }
+          case 'favorite': {
+            const bookmarked = baseMeta.isBookmarked ?? false;
+            const base = ensureNumber(baseMeta.favoriteCount, 0);
+            console.log('[ShortVideo] 收藏操作，当前状态：', bookmarked);
+            return {
+              ...current,
+              meta: {
+                ...baseMeta,
+                isBookmarked: !bookmarked,
+                favoriteCount: Math.max(0, base + (bookmarked ? -1 : 1)),
+              },
+            };
+          }
+          case 'comment': {
+            console.log('[ShortVideo] 点击评论，打开评论面板');
+            return {
+              ...current,
+              meta: {
+                ...baseMeta,
+                commentCount: ensureNumber(baseMeta.commentCount, 0) + 1,
+              },
+            };
+          }
+          case 'avatar': {
+            const followed = baseMeta.isFollowed ?? false;
+            console.log('[ShortVideo] 关注操作，当前状态：', followed);
+            return {
+              ...current,
+              meta: {
+                ...baseMeta,
+                isFollowed: !followed,
+              },
+            };
+          }
+          case 'author': {
+            console.log('[ShortVideo] 点击作者信息栏');
+            return current;
+          }
+          default:
+            return current;
+        }
+      });
+    },
+    [applyOverlayMeta]
+  );
+
   const handleVodEvent = useCallback(
     ({
       nativeEvent: { type, payload },
     }: {
       nativeEvent: { type: string; payload?: Record<string, unknown> };
     }) => {
-      console.log('[ShortVideo] VodEvent', type, payload);
+      // console.log('[ShortVideo] VodEvent', type, payload);
+      if (type === 'overlayAction') {
+        handleOverlayAction(payload);
+        return;
+      }
       setVodStatus((prev) => {
         let next = prev;
         switch (type) {
@@ -488,7 +824,7 @@ export default function App() {
         return next;
       });
     },
-    []
+    [handleOverlayAction]
   );
 
   const infoText = useMemo(() => {
@@ -593,8 +929,7 @@ export default function App() {
       hasLoggedFirstRef.current = true;
       console.log('[ShortVideo] 页面事件', { reason, index, total });
       if (reason === '首次加载' && autoPlayRef.current && !pausedRef.current) {
-        playerRef.current?.startPlayIndex(index, false);
-        playerRef.current?.resume();
+        playerRef.current?.startPlayIndex(0, true);
       }
       hasAutoStartedRef.current = true;
       logCurrentSource(reason, index, total);
@@ -851,6 +1186,7 @@ export default function App() {
         userInputEnabled={userInputEnabled}
         pageScrollMsPerInch={25}
         vodStrategy={{ renderMode: 0 }}
+        onTopReached={handleTopReached}
         onEndReached={handleEndReached}
         onPageChanged={handlePageChanged}
         onVodEvent={handleVodEvent}

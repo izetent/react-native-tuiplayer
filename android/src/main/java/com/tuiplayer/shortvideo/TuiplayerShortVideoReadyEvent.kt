@@ -6,25 +6,15 @@ import com.facebook.react.uimanager.events.Event
 import com.facebook.react.uimanager.events.RCTEventEmitter
 
 @Suppress("DEPRECATION")
-internal class TuiplayerShortVideoVodEvent(
+internal class TuiplayerShortVideoReadyEvent(
   surfaceId: Int,
-  viewId: Int,
-  private val type: String,
-  private val payload: WritableMap?
-) : Event<TuiplayerShortVideoVodEvent>(surfaceId, viewId) {
+  viewId: Int
+) : Event<TuiplayerShortVideoReadyEvent>(surfaceId, viewId) {
 
   override fun getEventName(): String = EVENT_NAME
 
   override fun getEventData(): WritableMap {
-    return Arguments.createMap().apply {
-      putString("type", type)
-      if (payload != null) {
-        val payloadCopy = Arguments.createMap().apply {
-          this.merge(payload)
-        }
-        putMap("payload", payloadCopy)
-      }
-    }
+    return Arguments.createMap()
   }
 
   @Deprecated("Dispatch via RCTModernEventEmitter")
@@ -33,6 +23,6 @@ internal class TuiplayerShortVideoVodEvent(
   }
 
   companion object {
-    const val EVENT_NAME = "topVodEvent"
+    const val EVENT_NAME = "topReady"
   }
 }

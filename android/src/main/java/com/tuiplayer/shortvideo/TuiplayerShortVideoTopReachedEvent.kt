@@ -6,24 +6,17 @@ import com.facebook.react.uimanager.events.Event
 import com.facebook.react.uimanager.events.RCTEventEmitter
 
 @Suppress("DEPRECATION")
-internal class TuiplayerShortVideoVodEvent(
+internal class TuiplayerShortVideoTopReachedEvent(
   surfaceId: Int,
   viewId: Int,
-  private val type: String,
-  private val payload: WritableMap?
-) : Event<TuiplayerShortVideoVodEvent>(surfaceId, viewId) {
+  private val offset: Int
+) : Event<TuiplayerShortVideoTopReachedEvent>(surfaceId, viewId) {
 
   override fun getEventName(): String = EVENT_NAME
 
   override fun getEventData(): WritableMap {
     return Arguments.createMap().apply {
-      putString("type", type)
-      if (payload != null) {
-        val payloadCopy = Arguments.createMap().apply {
-          this.merge(payload)
-        }
-        putMap("payload", payloadCopy)
-      }
+      putInt("offset", offset)
     }
   }
 
@@ -33,6 +26,6 @@ internal class TuiplayerShortVideoVodEvent(
   }
 
   companion object {
-    const val EVENT_NAME = "topVodEvent"
+    const val EVENT_NAME = "topReached"
   }
 }

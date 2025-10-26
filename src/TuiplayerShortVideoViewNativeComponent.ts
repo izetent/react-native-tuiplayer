@@ -10,6 +10,19 @@ import type {
   WithDefault,
 } from 'react-native/Libraries/Types/CodegenTypes';
 
+export type NativeShortVideoMeta = Readonly<{
+  authorName?: string;
+  authorAvatar?: string;
+  title?: string;
+  likeCount?: Double;
+  commentCount?: Double;
+  favoriteCount?: Double;
+  isLiked?: boolean;
+  isBookmarked?: boolean;
+  isFollowed?: boolean;
+  watchMoreText?: string;
+}>;
+
 export type NativeShortVideoSource = Readonly<{
   type?: WithDefault<string, 'fileId'>;
   appId?: Int32;
@@ -23,6 +36,7 @@ export type NativeShortVideoSource = Readonly<{
     preloadBufferSizeInMB?: Double;
     preDownloadSize?: Double;
   }>;
+  meta?: NativeShortVideoMeta;
 }>;
 
 export type NativeLayerConfig = Readonly<{
@@ -44,6 +58,10 @@ type NativeEventPayload<T> = Readonly<{
 
 export type NativeEvent<T> = Readonly<{
   nativeEvent: NativeEventPayload<T>;
+}>;
+
+export type NativeVoidEvent = Readonly<{
+  nativeEvent: Record<string, never>;
 }>;
 
 export type NativeVodStrategy = Readonly<{
@@ -76,6 +94,10 @@ export interface TuiplayerShortVideoViewEndReachedEvent {
   total: Int32;
 }
 
+export interface TuiplayerShortVideoViewTopReachedEvent {
+  offset: Int32;
+}
+
 export interface TuiplayerShortVideoViewPageChangedEvent {
   index: Int32;
   total: Int32;
@@ -97,6 +119,9 @@ export interface NativeProps extends ViewProps {
   layers?: NativeLayerConfig;
   vodStrategy?: NativeVodStrategy;
   liveStrategy?: NativeLiveStrategy;
+  onTopReached?: (
+    event: NativeEvent<TuiplayerShortVideoViewTopReachedEvent>
+  ) => void;
   onEndReached?: (
     event: NativeEvent<TuiplayerShortVideoViewEndReachedEvent>
   ) => void;
@@ -104,6 +129,7 @@ export interface NativeProps extends ViewProps {
     event: NativeEvent<TuiplayerShortVideoViewPageChangedEvent>
   ) => void;
   onVodEvent?: (event: NativeEvent<TuiplayerVodEvent>) => void;
+  onReady?: (event: NativeVoidEvent) => void;
 }
 
 const COMPONENT_NAME = 'TuiplayerShortVideoView';
@@ -128,6 +154,12 @@ type NativeCommands = {
   pausePreload: (ref: ComponentType) => void;
   resumePreload: (ref: ComponentType) => void;
   setUserInputEnabled: (ref: ComponentType, enabled: boolean) => void;
+  updateMeta: (
+    ref: ComponentType,
+    index: Int32,
+    meta: NativeShortVideoMeta
+  ) => void;
+  syncPlaybackState: (ref: ComponentType) => void;
 };
 
 export const Commands = codegenNativeCommands<NativeCommands>({
@@ -140,6 +172,8 @@ export const Commands = codegenNativeCommands<NativeCommands>({
     'pausePreload',
     'resumePreload',
     'setUserInputEnabled',
+    'updateMeta',
+    'syncPlaybackState',
   ],
 });
 

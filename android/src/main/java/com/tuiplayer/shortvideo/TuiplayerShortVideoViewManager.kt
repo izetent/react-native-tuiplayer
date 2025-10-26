@@ -8,6 +8,7 @@ import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.annotations.ReactProp
 import com.tuiplayer.shortvideo.TuiplayerShortVideoEndReachedEvent
 import com.tuiplayer.shortvideo.TuiplayerShortVideoPageChangedEvent
+import com.tuiplayer.shortvideo.TuiplayerShortVideoReadyEvent
 
 @ReactModule(name = TuiplayerShortVideoViewManager.NAME)
 internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShortVideoView>() {
@@ -23,6 +24,8 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
     private const val COMMAND_PAUSE_PRELOAD = 6
     private const val COMMAND_RESUME_PRELOAD = 7
     private const val COMMAND_SET_USER_INPUT_ENABLED = 8
+    private const val COMMAND_UPDATE_META = 9
+    private const val COMMAND_SYNC_PLAYBACK_STATE = 10
   }
 
   override fun getName(): String = NAME
@@ -88,7 +91,9 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
     return mutableMapOf(
       TuiplayerShortVideoPageChangedEvent.EVENT_NAME to mapOf("registrationName" to "onPageChanged"),
       TuiplayerShortVideoEndReachedEvent.EVENT_NAME to mapOf("registrationName" to "onEndReached"),
-      TuiplayerShortVideoVodEvent.EVENT_NAME to mapOf("registrationName" to "onVodEvent")
+      TuiplayerShortVideoTopReachedEvent.EVENT_NAME to mapOf("registrationName" to "onTopReached"),
+      TuiplayerShortVideoVodEvent.EVENT_NAME to mapOf("registrationName" to "onVodEvent"),
+      TuiplayerShortVideoReadyEvent.EVENT_NAME to mapOf("registrationName" to "onReady")
     )
   }
 
@@ -102,6 +107,8 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
       "pausePreload" to COMMAND_PAUSE_PRELOAD,
       "resumePreload" to COMMAND_RESUME_PRELOAD,
       "setUserInputEnabled" to COMMAND_SET_USER_INPUT_ENABLED,
+      "updateMeta" to COMMAND_UPDATE_META,
+      "syncPlaybackState" to COMMAND_SYNC_PLAYBACK_STATE,
     )
   }
 
@@ -116,6 +123,8 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
       "pausePreload" -> view.commandPausePreload()
       "resumePreload" -> view.commandResumePreload()
       "setUserInputEnabled" -> handleSetUserInputEnabled(view, args)
+      "updateMeta" -> handleUpdateMeta(view, args)
+      "syncPlaybackState" -> view.commandSyncPlaybackState()
     }
   }
 
@@ -130,6 +139,8 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
       COMMAND_PAUSE_PRELOAD -> view.commandPausePreload()
       COMMAND_RESUME_PRELOAD -> view.commandResumePreload()
       COMMAND_SET_USER_INPUT_ENABLED -> handleSetUserInputEnabled(view, args)
+      COMMAND_UPDATE_META -> handleUpdateMeta(view, args)
+      COMMAND_SYNC_PLAYBACK_STATE -> view.commandSyncPlaybackState()
     }
   }
 
@@ -153,6 +164,13 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
   private fun handleSetUserInputEnabled(view: TuiplayerShortVideoView, args: ReadableArray?) {
     val enabled = args?.getBooleanOrDefault(0, true) ?: true
     view.commandSetUserInputEnabled(enabled)
+  }
+
+  private fun handleUpdateMeta(view: TuiplayerShortVideoView, args: ReadableArray?) {
+    val index = args?.getIntOrNull(0) ?: return
+    val metaMap = args.getMapOrNull(1) ?: return
+    val metadata = metaMap.toShortVideoMetadata() ?: return
+    view.updateMetadata(index, metadata)
   }
 
   private fun parseSources(value: ReadableArray?): List<TuiplayerShortVideoSource> {
@@ -182,6 +200,10 @@ private fun ReadableArray?.getBooleanOrDefault(index: Int, default: Boolean): Bo
 
 private fun ReadableArray?.getIntOrDefault(index: Int, default: Int): Int {
   return if (this != null && index < size() && !isNull(index)) getInt(index) else default
+}
+
+private fun ReadableArray?.getMapOrNull(index: Int): ReadableMap? {
+  return if (this != null && index < size() && !isNull(index)) getMap(index) else null
 }
 
 private fun ReadableMap.getStringOrNull(key: String): String? {
@@ -253,6 +275,7 @@ private fun ReadableMap.toSource(): TuiplayerShortVideoSource {
   } else {
     null
   }
+  val metadata = getMapOrNull("meta")?.toShortVideoMetadata()
 
   return TuiplayerShortVideoSource(
     type = sourceType,
@@ -263,6 +286,34 @@ private fun ReadableMap.toSource(): TuiplayerShortVideoSource {
     pSign = pSign,
     extViewType = extViewType,
     autoPlay = autoPlay,
-    videoConfig = videoConfig
+    videoConfig = videoConfig,
+    metadata = metadata
   )
+}
+
+private fun ReadableMap.toShortVideoMetadata(): TuiplayerShortVideoSource.Metadata? {
+  val authorName = getStringOrNull("authorName")
+  val authorAvatar = getStringOrNull("authorAvatar")
+  val title = getStringOrNull("title")
+  val likeCount = getDoubleOrNull("likeCount")?.toLong()
+  val commentCount = getDoubleOrNull("commentCount")?.toLong()
+  val favoriteCount = getDoubleOrNull("favoriteCount")?.toLong()
+  val isLiked = getBooleanOrNull("isLiked")
+  val isBookmarked = getBooleanOrNull("isBookmarked")
+  val isFollowed = getBooleanOrNull("isFollowed")
+  val watchMoreText = getStringOrNull("watchMoreText")
+
+  val metadata = TuiplayerShortVideoSource.Metadata(
+    authorName = authorName,
+    authorAvatar = authorAvatar,
+    title = title,
+    likeCount = likeCount,
+    commentCount = commentCount,
+    favoriteCount = favoriteCount,
+    isLiked = isLiked,
+    isBookmarked = isBookmarked,
+    isFollowed = isFollowed,
+    watchMoreText = watchMoreText
+  )
+  return metadata.takeIf { it.hasValue }
 }
