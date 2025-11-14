@@ -384,6 +384,7 @@ private fun ReadableMap.toShortVideoSource(): TuiplayerShortVideoSource? {
     null
   }
   val metadata = getMapOrNull("meta")?.toShortVideoMetadata()
+  val subtitles = getArrayOrNull("subtitles")?.toSubtitleList()
   if (type == TuiplayerShortVideoSource.SourceType.FILE_ID && fileId.isNullOrBlank()) {
     return null
   }
@@ -400,8 +401,21 @@ private fun ReadableMap.toShortVideoSource(): TuiplayerShortVideoSource? {
     extViewType = extViewType,
     autoPlay = autoPlay,
     videoConfig = videoConfig,
-    metadata = metadata
+    metadata = metadata,
+    subtitles = subtitles
   )
+}
+
+private fun ReadableArray.toSubtitleList(): List<TuiplayerShortVideoSource.Subtitle> {
+  val result = mutableListOf<TuiplayerShortVideoSource.Subtitle>()
+  for (index in 0 until size()) {
+    val map = getMap(index) ?: continue
+    val url = map.getStringOrNull("url") ?: continue
+    val name = map.getStringOrNull("name")
+    val mimeType = map.getStringOrNull("mimeType")
+    result.add(TuiplayerShortVideoSource.Subtitle(name, url, mimeType))
+  }
+  return result
 }
 
 private fun ReadableMap.toShortVideoMetadata(): TuiplayerShortVideoSource.Metadata? {

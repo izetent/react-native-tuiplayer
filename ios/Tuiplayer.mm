@@ -2,11 +2,27 @@
 #import "react-native-tuiplayer-Swift.h"
 #import <React/RCTUIManager.h>
 #import <React/RCTUtils.h>
+#import <TUIPlayerShortVideo/TUIShortVideoView.h>
 
 @implementation Tuiplayer
 - (void)initialize:(NSDictionary *)config
 {
   [TuiplayerModule.shared initializeWith:config];
+}
+
+- (NSDictionary *)getShortVideoConstants
+{
+  NSMutableDictionary *constants = [NSMutableDictionary dictionary];
+  constants[@"listPlayMode"] = @{
+    @"MODE_ONE_LOOP": @(TUIPlayModeOneLoop),
+    @"MODE_LIST_LOOP": @(TUIPlayModeListLoop),
+    @"MODE_CUSTOM": @(TUIPlayModeCustomLoop),
+  };
+  constants[@"resolutionType"] = @{
+    @"GLOBAL": @(-1),
+    @"CURRENT": @(-2),
+  };
+  return constants;
 }
 
 - (void)performWithView:(double)viewTag

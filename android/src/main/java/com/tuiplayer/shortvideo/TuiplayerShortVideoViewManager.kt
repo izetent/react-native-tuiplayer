@@ -87,6 +87,11 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
     view.setLiveStrategy(value)
   }
 
+  @ReactProp(name = "subtitleStyle")
+  fun propSubtitleStyle(view: TuiplayerShortVideoView, value: ReadableMap?) {
+    view.setSubtitleStyle(value)
+  }
+
   override fun getExportedCustomDirectEventTypeConstants(): MutableMap<String, Any> {
     return mutableMapOf(
       TuiplayerShortVideoPageChangedEvent.EVENT_NAME to mapOf("registrationName" to "onPageChanged"),
@@ -276,6 +281,7 @@ private fun ReadableMap.toSource(): TuiplayerShortVideoSource {
     null
   }
   val metadata = getMapOrNull("meta")?.toShortVideoMetadata()
+  val subtitles = getArrayOrNull("subtitles")?.toSubtitleList()
 
   return TuiplayerShortVideoSource(
     type = sourceType,
@@ -287,8 +293,24 @@ private fun ReadableMap.toSource(): TuiplayerShortVideoSource {
     extViewType = extViewType,
     autoPlay = autoPlay,
     videoConfig = videoConfig,
-    metadata = metadata
+    metadata = metadata,
+    subtitles = subtitles
   )
+}
+
+private fun ReadableArray?.toSubtitleList(): List<TuiplayerShortVideoSource.Subtitle> {
+  if (this == null) {
+    return emptyList()
+  }
+  val result = mutableListOf<TuiplayerShortVideoSource.Subtitle>()
+  for (index in 0 until size()) {
+    val map = getMap(index) ?: continue
+    val url = map.getStringOrNull("url") ?: continue
+    val name = map.getStringOrNull("name")
+    val mimeType = map.getStringOrNull("mimeType")
+    result.add(TuiplayerShortVideoSource.Subtitle(name, url, mimeType))
+  }
+  return result
 }
 
 private fun ReadableMap.toShortVideoMetadata(): TuiplayerShortVideoSource.Metadata? {

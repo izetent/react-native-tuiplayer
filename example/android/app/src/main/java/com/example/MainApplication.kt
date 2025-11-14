@@ -1,4 +1,4 @@
-package com.dramango.demo
+package com.zapcliphd
 
 import android.app.Application
 import com.facebook.react.PackageList

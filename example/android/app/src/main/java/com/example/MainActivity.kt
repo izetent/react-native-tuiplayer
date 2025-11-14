@@ -1,4 +1,4 @@
-package com.dramango.demo
+package com.zapcliphd
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

@@ -12,7 +12,9 @@ import {
   StyleSheet,
   type StyleProp,
   type ViewStyle,
+  type ColorValue,
   findNodeHandle,
+  processColor,
 } from 'react-native';
 
 import NativeTuiplayer, {
@@ -25,6 +27,7 @@ import TuiplayerShortVideoNativeComponent, {
   type NativeVodStrategy,
   type NativeLiveStrategy,
   type NativePreferredResolution,
+  type NativeSubtitleStyle,
   Commands,
 } from './TuiplayerShortVideoViewNativeComponent';
 import type {
@@ -35,6 +38,7 @@ import type {
   TuiplayerLiveStrategyOptions,
   PreferredResolution,
   TuiplayerLayerConfig,
+  TuiplayerSubtitleStyle,
 } from './types';
 
 export const initialize = (config: TuiplayerLicenseConfig) => {
@@ -56,12 +60,26 @@ const FALLBACK_RESOLUTION_TYPE = Object.freeze({
   CURRENT: 1,
 } as const);
 
+const normalizeNativeColor = (
+  value?: ColorValue | null
+): number | undefined => {
+  if (value == null) {
+    return undefined;
+  }
+  const resolved = processColor(value);
+  return typeof resolved === 'number' ? resolved : undefined;
+};
+
 type VodPlayerTargetOptions = {
   index?: number;
 };
 
 type VodSwitchResolutionOptions = VodPlayerTargetOptions & {
   target?: number;
+};
+
+type MutableNativeSubtitleStyle = {
+  -readonly [K in keyof NativeSubtitleStyle]: NativeSubtitleStyle[K];
 };
 
 type VodPlayerCommand =
@@ -293,6 +311,7 @@ export type TuiplayerShortVideoViewProps = {
   layers?: TuiplayerLayerConfig;
   vodStrategy?: TuiplayerVodStrategyOptions;
   liveStrategy?: TuiplayerLiveStrategyOptions;
+  subtitleStyle?: TuiplayerSubtitleStyle;
   onPageChanged?: (event: {
     nativeEvent: {
       index: number;
@@ -340,6 +359,7 @@ export const TuiplayerShortVideoView = forwardRef<
       layers,
       vodStrategy,
       liveStrategy,
+      subtitleStyle,
       onPageChanged,
       onTopReached,
       onEndReached,
@@ -414,6 +434,7 @@ export const TuiplayerShortVideoView = forwardRef<
         autoPlay: item.autoPlay,
         videoConfig: item.videoConfig,
         meta: item.meta,
+        subtitles: item.subtitles,
       }),
       []
     );
@@ -450,7 +471,6 @@ export const TuiplayerShortVideoView = forwardRef<
       if (!vodStrategy) {
         return undefined;
       }
-
       return {
         preloadCount: vodStrategy.preloadCount,
         preDownloadSize: vodStrategy.preDownloadSize,
@@ -460,7 +480,6 @@ export const TuiplayerShortVideoView = forwardRef<
           ? normalizePreferredResolution(vodStrategy.preferredResolution)
           : undefined,
         progressInterval: vodStrategy.progressInterval,
-        renderMode: vodStrategy.renderMode,
         mediaType: vodStrategy.mediaType,
         resumeMode:
           typeof vodStrategy.resumeMode === 'number'
@@ -476,6 +495,7 @@ export const TuiplayerShortVideoView = forwardRef<
             : vodStrategy.superResolutionMode,
         retryCount: vodStrategy.retryCount,
         prePlayStrategy: vodStrategy.prePlayStrategy,
+        renderMode: vodStrategy.renderMode,
       } satisfies NativeVodStrategy;
     }, [vodStrategy]);
 
@@ -491,6 +511,80 @@ export const TuiplayerShortVideoView = forwardRef<
         prePlayStrategy: liveStrategy.prePlayStrategy,
       } satisfies NativeLiveStrategy;
     }, [liveStrategy]);
+
+    const normalizedSubtitleStyle = useMemo<
+      NativeSubtitleStyle | undefined
+    >(() => {
+      if (!subtitleStyle) {
+        return undefined;
+      }
+      const payload: MutableNativeSubtitleStyle = {};
+      let hasValue = false;
+
+      const assignFloat = <K extends keyof NativeSubtitleStyle>(
+        key: K,
+        value?: number
+      ) => {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+          payload[key] = value as NativeSubtitleStyle[K];
+          hasValue = true;
+        }
+      };
+
+      const assignInt = <K extends keyof NativeSubtitleStyle>(
+        key: K,
+        value?: number
+      ) => {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+          payload[key] = Math.round(value) as NativeSubtitleStyle[K];
+          hasValue = true;
+        }
+      };
+
+      assignInt('canvasWidth', subtitleStyle.canvasWidth);
+      assignInt('canvasHeight', subtitleStyle.canvasHeight);
+
+      if (
+        typeof subtitleStyle.familyName === 'string' &&
+        subtitleStyle.familyName.length > 0
+      ) {
+        payload.familyName = subtitleStyle.familyName;
+        hasValue = true;
+      }
+
+      assignFloat('fontSize', subtitleStyle.fontSize);
+      assignFloat('fontScale', subtitleStyle.fontScale);
+
+      const fontColor = normalizeNativeColor(
+        subtitleStyle.fontColor as ColorValue | null
+      );
+      if (typeof fontColor === 'number') {
+        payload.fontColor = fontColor;
+        hasValue = true;
+      }
+
+      if (typeof subtitleStyle.bold === 'boolean') {
+        payload.bold = subtitleStyle.bold;
+        hasValue = true;
+      }
+
+      assignFloat('outlineWidth', subtitleStyle.outlineWidth);
+
+      const outlineColor = normalizeNativeColor(
+        subtitleStyle.outlineColor as ColorValue | null
+      );
+      if (typeof outlineColor === 'number') {
+        payload.outlineColor = outlineColor;
+        hasValue = true;
+      }
+
+      assignFloat('lineSpace', subtitleStyle.lineSpace);
+      assignFloat('startMargin', subtitleStyle.startMargin);
+      assignFloat('endMargin', subtitleStyle.endMargin);
+      assignFloat('verticalMargin', subtitleStyle.verticalMargin);
+
+      return hasValue ? payload : undefined;
+    }, [subtitleStyle]);
 
     const serializeVodOptions = useCallback(
       (
@@ -833,6 +927,7 @@ export const TuiplayerShortVideoView = forwardRef<
         layers={normalizedLayers}
         vodStrategy={normalizedVodStrategy}
         liveStrategy={normalizedLiveStrategy}
+        subtitleStyle={normalizedSubtitleStyle}
         onPageChanged={onPageChanged}
         onTopReached={onTopReached}
         onEndReached={onEndReached}

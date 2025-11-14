@@ -23,6 +23,12 @@ export type NativeShortVideoMeta = Readonly<{
   watchMoreText?: string;
 }>;
 
+export type NativeSubtitleSource = Readonly<{
+  name?: string;
+  url: string;
+  mimeType?: string;
+}>;
+
 export type NativeShortVideoSource = Readonly<{
   type?: WithDefault<string, 'fileId'>;
   appId?: Int32;
@@ -37,12 +43,29 @@ export type NativeShortVideoSource = Readonly<{
     preDownloadSize?: Double;
   }>;
   meta?: NativeShortVideoMeta;
+  subtitles?: ReadonlyArray<NativeSubtitleSource>;
 }>;
 
 export type NativeLayerConfig = Readonly<{
   vodLayers?: string[];
   liveLayers?: string[];
   customLayers?: string[];
+}>;
+
+export type NativeSubtitleStyle = Readonly<{
+  canvasWidth?: Int32;
+  canvasHeight?: Int32;
+  familyName?: string;
+  fontSize?: Double;
+  fontScale?: Double;
+  fontColor?: Int32;
+  bold?: boolean;
+  outlineWidth?: Double;
+  outlineColor?: Int32;
+  lineSpace?: Double;
+  startMargin?: Double;
+  endMargin?: Double;
+  verticalMargin?: Double;
 }>;
 
 export type NativePreferredResolution = Readonly<{
@@ -119,6 +142,7 @@ export interface NativeProps extends ViewProps {
   layers?: NativeLayerConfig;
   vodStrategy?: NativeVodStrategy;
   liveStrategy?: NativeLiveStrategy;
+  subtitleStyle?: NativeSubtitleStyle;
   onTopReached?: (
     event: NativeEvent<TuiplayerShortVideoViewTopReachedEvent>
   ) => void;

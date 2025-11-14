@@ -16,6 +16,12 @@ export type ShortVideoSourceConfigPayload = {
   preDownloadSize?: number;
 };
 
+export type ShortVideoSubtitlePayload = {
+  name?: string;
+  url: string;
+  mimeType?: string;
+};
+
 export type ShortVideoSourceMetaPayload = {
   authorName?: string;
   authorAvatar?: string;
@@ -41,6 +47,7 @@ export type ShortVideoSourcePayload = {
   videoConfig?: ShortVideoSourceConfigPayload;
   meta?: ShortVideoSourceMetaPayload;
   duration?: number;
+  subtitles?: ShortVideoSubtitlePayload[];
 };
 
 export type CurrentShortVideoInfo = {

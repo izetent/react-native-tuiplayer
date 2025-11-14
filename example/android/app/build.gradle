@@ -77,9 +77,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.dramango.demo"
+    namespace "com.zapcliphd"
     defaultConfig {
-        applicationId "com.dramango.demo"
+        applicationId "com.zapcliphd"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

@@ -382,6 +382,8 @@ async function requestFeaturedVideos(
 const LICENSE_URL = '4ddf62fce4de0a8fe505415a45a27823';
 const LICENSE_KEY =
   'https://1377187151.trtcube-license.cn/license/v2/1377187151_1/v_cube.license';
+const TEST_SUBTITLE_URL =
+  'https://deu-1377187151.cos.eu-frankfurt.myqcloud.com/SRT/S00337-The%20Pendleton%20Secrete/3_zh.vtt';
 
 export default function App() {
   const [autoPlay, setAutoPlay] = useState(true);
@@ -492,6 +494,31 @@ export default function App() {
 
   const licenseConfigured = Boolean(LICENSE_KEY && LICENSE_URL);
 
+  const ensureTestSubtitle = useCallback((list: ShortVideoSource[]) => {
+    if (list.length === 0) {
+      return list;
+    }
+    const [first, ...rest] = list;
+    if (!first) {
+      return list;
+    }
+    if (first.subtitles?.some((item) => item.url === TEST_SUBTITLE_URL)) {
+      return list;
+    }
+    const enhanced: ShortVideoSource = {
+      ...first,
+      subtitles: [
+        ...(first.subtitles ?? []),
+        {
+          name: '中文字幕',
+          url: TEST_SUBTITLE_URL,
+          mimeType: 'text/vtt',
+        },
+      ],
+    };
+    return [enhanced, ...rest];
+  }, []);
+
   const loadRemotePage = useCallback(
     async (targetPage: number, append: boolean) => {
       if (fetchLockRef.current) {
@@ -515,7 +542,7 @@ export default function App() {
           .filter((item): item is ShortVideoSource => item !== null);
 
         setSources((prev) =>
-          append ? [...prev, ...nextSources] : nextSources
+          ensureTestSubtitle(append ? [...prev, ...nextSources] : nextSources)
         );
         setPage(targetPage);
         setHasMore(videos.length >= PAGE_SIZE);
@@ -535,7 +562,7 @@ export default function App() {
         fetchLockRef.current = false;
       }
     },
-    []
+    [ensureTestSubtitle]
   );
 
   const resetSources = useCallback(() => {
@@ -1147,32 +1174,6 @@ export default function App() {
             />
             <ActionButton label="拉取清晰度" onPress={refreshVodStatus} />
           </View>
-          <View style={styles.buttonRow}>
-            <ActionButton
-              label="铺满模式"
-              onPress={async () => {
-                try {
-                  await playerRef.current?.vodPlayer.setRenderMode(0);
-                } catch (error) {
-                  console.warn('[ShortVideo] 设置铺满模式失败:', error);
-                } finally {
-                  await refreshVodStatus();
-                }
-              }}
-            />
-            <ActionButton
-              label="等比适配"
-              onPress={async () => {
-                try {
-                  await playerRef.current?.vodPlayer.setRenderMode(1);
-                } catch (error) {
-                  console.warn('[ShortVideo] 设置等比模式失败:', error);
-                } finally {
-                  await refreshVodStatus();
-                }
-              }}
-            />
-          </View>
         </View>
       </ScrollView>
 
@@ -1185,7 +1186,6 @@ export default function App() {
         playMode={playModeValue}
         userInputEnabled={userInputEnabled}
         pageScrollMsPerInch={25}
-        vodStrategy={{ renderMode: 0 }}
         onTopReached={handleTopReached}
         onEndReached={handleEndReached}
         onPageChanged={handlePageChanged}

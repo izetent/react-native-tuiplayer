@@ -2,6 +2,7 @@ package com.tuiplayer.shortvideo
 
 import com.tencent.qcloud.tuiplayer.core.api.model.TUIPlaySource
 import com.tencent.qcloud.tuiplayer.core.api.model.TUIPlayerVideoConfig
+import com.tencent.qcloud.tuiplayer.core.api.model.TUISubtitleSource
 import com.tencent.qcloud.tuiplayer.core.api.model.TUIVideoSource
 
 internal data class TuiplayerShortVideoSource(
@@ -14,7 +15,8 @@ internal data class TuiplayerShortVideoSource(
   val extViewType: Int?,
   val autoPlay: Boolean?,
   val videoConfig: VideoConfig?,
-  val metadata: Metadata?
+  val metadata: Metadata?,
+  val subtitles: List<Subtitle>?
 ) {
 
   enum class SourceType {
@@ -59,6 +61,37 @@ internal data class TuiplayerShortVideoSource(
       }
   }
 
+  data class Subtitle(
+    val name: String?,
+    val url: String,
+    val mimeType: String?
+  ) {
+    fun toNative(): TUISubtitleSource? {
+      if (url.isBlank()) {
+        return null
+      }
+      val resolvedName = if (!name.isNullOrBlank()) name else url
+      return TUISubtitleSource(resolvedName, url, normalizedMimeType())
+    }
+
+    fun normalizedMimeType(): String {
+      return normalizeMimeType(mimeType)
+    }
+
+    companion object {
+      private fun normalizeMimeType(value: String?): String {
+        if (value.isNullOrBlank()) {
+          return "text/vtt"
+        }
+        return when (value.trim().lowercase()) {
+          "text/srt", "srt", "application/x-subrip" -> "text/srt"
+          "text/vtt", "vtt", "text/webvtt" -> "text/vtt"
+          else -> "text/vtt"
+        }
+      }
+    }
+  }
+
   fun toPlaySource(): TUIPlaySource? {
     val playSource = TUIVideoSource()
     coverPictureUrl?.takeIf { it.isNotBlank() }?.let { playSource.setCoverPictureUrl(it) }
@@ -73,6 +106,12 @@ internal data class TuiplayerShortVideoSource(
         playerConfig.setPreDownloadSize(bytes)
       }
       playSource.setVideoConfig(playerConfig)
+    }
+    subtitles?.let { entries ->
+      val resolved = entries.mapNotNull { it.toNative() }
+      if (resolved.isNotEmpty()) {
+        playSource.setExternalSubtitle(resolved)
+      }
     }
 
     when (type) {

@@ -22,7 +22,7 @@ export type VodStrategyOptions = {
   preferredResolution?: PreferredResolution;
   /** 播放进度回调间隔，单位毫秒，默认 500。 */
   progressInterval?: number;
-  /** 渲染模式常量，0 全屏裁剪，1 按比例适配。 */
+  /** 渲染模式常量：0 拉伸铺满、1 等比适配。 */
   renderMode?: number;
   /** 媒资类型提示，用于加速探测。 */
   mediaType?: number;
@@ -106,6 +106,50 @@ export type ShortVideoOverlayMeta = {
 };
 
 /**
+ * 外挂字幕源定义。
+ */
+export type ShortVideoSubtitle = {
+  /** 字幕唯一名称，用于区分不同轨道。 */
+  name?: string;
+  /** 字幕文件地址，支持 VTT/SRT。 */
+  url: string;
+  /** 字幕类型，接受 text/vtt、text/srt 或 vtt/srt 简写。 */
+  mimeType?: 'text/vtt' | 'text/srt' | 'vtt' | 'srt' | string;
+};
+
+/**
+ * 字幕渲染样式配置。
+ */
+export type TuiplayerSubtitleStyle = {
+  /** 自定义画布宽度，单位像素。 */
+  canvasWidth?: number;
+  /** 自定义画布高度，单位像素。 */
+  canvasHeight?: number;
+  /** 自定义字体族名称。 */
+  familyName?: string;
+  /** 固定字体大小。 */
+  fontSize?: number;
+  /** 字体缩放比例。 */
+  fontScale?: number;
+  /** 字体颜色。 */
+  fontColor?: number | string;
+  /** 是否加粗。 */
+  bold?: boolean;
+  /** 描边宽度。 */
+  outlineWidth?: number;
+  /** 描边颜色。 */
+  outlineColor?: number | string;
+  /** 行距。 */
+  lineSpace?: number;
+  /** 左侧/起始方向的外边距，0-1 之间的小数。 */
+  startMargin?: number;
+  /** 右侧/结束方向的外边距，0-1 之间的小数。 */
+  endMargin?: number;
+  /** 垂直方向外边距，0-1 之间的小数。 */
+  verticalMargin?: number;
+};
+
+/**
  * 单条短视频数据模型。
  */
 export type ShortVideoSource = {
@@ -129,6 +173,8 @@ export type ShortVideoSource = {
   videoConfig?: ShortVideoSourceConfig;
   /** 覆盖 UI 所需的额外信息（Android 默认展示）。 */
   meta?: ShortVideoOverlayMeta;
+  /** 外挂字幕轨道列表。 */
+  subtitles?: ShortVideoSubtitle[];
 };
 
 /**
