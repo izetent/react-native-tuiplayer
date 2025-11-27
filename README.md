@@ -54,6 +54,7 @@ export function Player() {
 > - Android 端额外挂载 `com.tuiplayer.shortvideo.layer.TuiplayerInfoLayer`，默认展示头像、标题及点赞/评论/收藏按钮。
 > - 新增的 `ShortVideoSource.meta` 字段可传递作者信息与统计数据；按钮点击会通过 `onVodEvent` 回调一条 `type: 'overlayAction'` 事件，包含 `action`、`index` 与最新 `source` 数据，方便在 RN 侧处理点赞等逻辑。
 > - 若需完全自定义，可在 `layers.vodLayers` 覆盖该图层或自行扩展实现。
+> - **注意**：在 RN 侧处理 `overlayAction` 时，合并元数据请让「当前本地状态」覆盖「原生回调携带的 meta」，避免原生回调的旧值把刚更新的点赞/收藏状态覆盖掉，导致“第二次点击撤销第一次”的假象。
 
 ### License
 

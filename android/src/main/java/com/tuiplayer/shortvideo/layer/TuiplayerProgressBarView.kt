@@ -26,8 +26,8 @@ internal class TuiplayerProgressBarView @JvmOverloads constructor(
     fun onSeekFinished(ratio: Float, cancelled: Boolean)
   }
 
-  private val collapsedHeightPx = PixelHelper.pxF(4f)
-  private val expandedHeightPx = PixelHelper.pxF(10f)
+  private val collapsedHeightPx = PixelHelper.pxF(6f)
+  private val expandedHeightPx = PixelHelper.pxF(12f)
 
   private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
     color = Color.parseColor("#2DFFFFFF")
@@ -36,7 +36,7 @@ internal class TuiplayerProgressBarView @JvmOverloads constructor(
     color = Color.parseColor("#60FFFFFF")
   }
   private val progressPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-    color = Color.WHITE
+    color = Color.parseColor("#FF782E")
   }
   private val loadingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
     color = Color.parseColor("#45FFFFFF")
@@ -56,6 +56,7 @@ internal class TuiplayerProgressBarView @JvmOverloads constructor(
   private var trackHeightAnimator: ValueAnimator? = null
   private var loadingAnimator: ValueAnimator? = null
   private var seekListener: OnSeekListener? = null
+  private val touchExtensionPx = PixelHelper.pxF(24f)
 
   init {
     isClickable = true
@@ -158,6 +159,9 @@ internal class TuiplayerProgressBarView @JvmOverloads constructor(
     val ratio = computeRatio(event.x)
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
+        if (!isWithinTouchSlop(event.y)) {
+          return false
+        }
         parent.requestDisallowInterceptTouchEvent(true)
         isTracking = true
         dragRatio = ratio
@@ -207,6 +211,10 @@ internal class TuiplayerProgressBarView @JvmOverloads constructor(
       }
       start()
     }
+  }
+
+  private fun isWithinTouchSlop(y: Float): Boolean {
+    return y >= -touchExtensionPx && y <= height + touchExtensionPx
   }
 
   private fun setLoadingVisibleInternal(visible: Boolean, force: Boolean = false) {

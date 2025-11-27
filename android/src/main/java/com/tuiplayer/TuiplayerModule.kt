@@ -5,6 +5,7 @@ import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.ReadableMap
+import com.facebook.react.bridge.ReadableType
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.UiThreadUtil
@@ -16,6 +17,7 @@ import com.tencent.qcloud.tuiplayer.core.TUIPlayerConfig
 import com.tencent.qcloud.tuiplayer.core.TUIPlayerCore
 import com.tuiplayer.shortvideo.TuiplayerShortVideoView
 import com.tuiplayer.shortvideo.TuiplayerShortVideoSource
+import com.tuiplayer.shortvideo.toStringList
 import java.lang.reflect.Modifier
 
 @ReactModule(name = TuiplayerModule.NAME)
@@ -419,28 +421,47 @@ private fun ReadableArray.toSubtitleList(): List<TuiplayerShortVideoSource.Subti
 }
 
 private fun ReadableMap.toShortVideoMetadata(): TuiplayerShortVideoSource.Metadata? {
-  val authorName = getStringOrNull("authorName")
-  val authorAvatar = getStringOrNull("authorAvatar")
-  val title = getStringOrNull("title")
+  val name = getStringOrNull("name")
+  val icon = getStringOrNull("icon")
+  val type = getTagList("type")
+  val details = getStringOrNull("details")
   val likeCount = getDoubleOrNull("likeCount")?.toLong()
-  val commentCount = getDoubleOrNull("commentCount")?.toLong()
   val favoriteCount = getDoubleOrNull("favoriteCount")?.toLong()
+  val isShowPaly = getBooleanOrNull("isShowPaly")
   val isLiked = getBooleanOrNull("isLiked")
   val isBookmarked = getBooleanOrNull("isBookmarked")
-  val isFollowed = getBooleanOrNull("isFollowed")
-  val watchMoreText = getStringOrNull("watchMoreText")
 
   val metadata = TuiplayerShortVideoSource.Metadata(
-    authorName = authorName,
-    authorAvatar = authorAvatar,
-    title = title,
+    name = name,
+    icon = icon,
+    type = type,
+    details = details,
     likeCount = likeCount,
-    commentCount = commentCount,
     favoriteCount = favoriteCount,
+    isShowPaly = isShowPaly,
     isLiked = isLiked,
-    isBookmarked = isBookmarked,
-    isFollowed = isFollowed,
-    watchMoreText = watchMoreText
+    isBookmarked = isBookmarked
   )
   return metadata.takeIf { it.hasValue }
+}
+
+private fun ReadableMap.getTagList(key: String): List<String>? {
+  if (!hasKey(key) || isNull(key)) {
+    return null
+  }
+  return when (getType(key)) {
+    ReadableType.Array -> getArray(key)?.toStringList()?.takeIf { it.isNotEmpty() }
+    ReadableType.String -> parseTagString(getString(key))
+    else -> null
+  }
+}
+
+private fun parseTagString(value: String?): List<String>? {
+  if (value.isNullOrBlank()) {
+    return null
+  }
+  val parts = value.split("#")
+    .map { it.trim() }
+    .filter { it.isNotEmpty() }
+  return if (parts.isEmpty()) null else parts
 }

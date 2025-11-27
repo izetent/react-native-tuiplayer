@@ -80,29 +80,39 @@ export type ShortVideoSourceConfig = {
 };
 
 /**
- * 覆盖在视频上的额外展示信息，对应 Android 覆盖图层。
+ * 覆盖在视频上的额外展示信息,对应 Android 覆盖图层。
  */
 export type ShortVideoOverlayMeta = {
-  /** 作者/发布者名称。 */
-  authorName?: string;
-  /** 作者头像 URL。 */
-  authorAvatar?: string;
-  /** 视频标题或简介。 */
-  title?: string;
+  /** 视频名称/标题。 */
+  name?: string;
+  /** 视频图标/封面 URL。 */
+  icon?: string;
+  /** 视频类型/标签列表。 */
+  type?: string | string[];
+  /** 视频详情描述。 */
+  details?: string;
   /** 点赞数量。 */
   likeCount?: number;
-  /** 评论数量。 */
-  commentCount?: number;
   /** 收藏/追剧数量。 */
   favoriteCount?: number;
+  /** 评论数量（iOS 旧信息层仍会使用）。 */
+  commentCount?: number;
+  /** 是否显示播放按钮。 */
+  isShowPaly?: boolean;
   /** 当前是否已点赞。 */
   isLiked?: boolean;
   /** 当前是否已收藏。 */
   isBookmarked?: boolean;
-  /** 当前是否已关注作者。 */
+  /** 是否已关注；iOS 旧信息层使用。 */
   isFollowed?: boolean;
-  /** “看全集”按钮展示文案（非空时展示并可点击）。 */
+  /** “查看更多”一类的提示文案。 */
   watchMoreText?: string;
+  /** 兼容旧字段：作者名称。 */
+  authorName?: string;
+  /** 兼容旧字段：作者头像。 */
+  authorAvatar?: string;
+  /** 兼容旧字段：信息层标题。 */
+  title?: string;
 };
 
 /**

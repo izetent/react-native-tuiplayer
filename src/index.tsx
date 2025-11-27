@@ -236,6 +236,22 @@ export type TuiplayerShortVideoViewHandle = {
    */
   updateMeta: (index: number, meta: ShortVideoOverlayMeta) => void;
   /**
+   * 隐藏所有原生覆盖层（清屏）。
+   */
+  clearScreen: () => void;
+  /**
+   * 恢复原生覆盖层显示。
+   */
+  restoreScreen: () => void;
+  /**
+   * 控制顶部下拉刷新 Loading 的可见性。
+   */
+  setTopLoadingVisible: (visible: boolean) => void;
+  /**
+   * 控制底部加载更多 Loading 的可见性。
+   */
+  setBottomLoadingVisible: (visible: boolean) => void;
+  /**
    * 获取当前正在播放的短视频信息。
    */
   getCurrentSource: () => Promise<CurrentShortVideoInfo | null>;
@@ -433,7 +449,7 @@ export const TuiplayerShortVideoView = forwardRef<
         extViewType: item.extViewType,
         autoPlay: item.autoPlay,
         videoConfig: item.videoConfig,
-        meta: item.meta,
+        meta: item.meta ? normalizeOverlayMeta(item.meta) : undefined,
         subtitles: item.subtitles,
       }),
       []
@@ -782,6 +798,26 @@ export const TuiplayerShortVideoView = forwardRef<
             Commands.updateMeta(view, index, normalizeOverlayMeta(meta));
           });
         },
+        clearScreen: () => {
+          runOrQueueNativeCommand((view) => {
+            Commands.setOverlayVisible(view, false);
+          });
+        },
+        restoreScreen: () => {
+          runOrQueueNativeCommand((view) => {
+            Commands.setOverlayVisible(view, true);
+          });
+        },
+        setTopLoadingVisible: (visible: boolean) => {
+          runOrQueueNativeCommand((view) => {
+            Commands.setTopLoadingVisible(view, visible);
+          });
+        },
+        setBottomLoadingVisible: (visible: boolean) => {
+          runOrQueueNativeCommand((view) => {
+            Commands.setBottomLoadingVisible(view, visible);
+          });
+        },
         getCurrentSource: async () => {
           if (!nativeReadyRef.current || nativeRef.current == null) {
             return null;
@@ -968,27 +1004,54 @@ function normalizePreferredResolution(value: PreferredResolution | undefined) {
 function normalizeOverlayMeta(
   meta: ShortVideoOverlayMeta
 ): NativeShortVideoMeta {
+  const pickString = (value?: string | null): string | undefined => {
+    if (typeof value !== 'string') {
+      return undefined;
+    }
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  };
+  const pickCount = (value?: number): number | undefined =>
+    typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+
+  const normalizedName = pickString(meta.name);
+  const normalizedIcon = pickString(meta.icon);
+  const normalizedDetails = pickString(meta.details);
+  const normalizedWatchMore =
+    pickString(meta.watchMoreText) ?? normalizedDetails;
+  const normalizedTitle = pickString(meta.title) ?? normalizedName;
+  const normalizedAuthorName = pickString(meta.authorName) ?? normalizedName;
+  const normalizedAuthorAvatar =
+    pickString(meta.authorAvatar) ?? normalizedIcon;
+  const normalizedType = (() => {
+    if (Array.isArray(meta.type)) {
+      const cleaned = meta.type
+        .map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
+        .filter((tag) => tag.length > 0);
+      return cleaned.length > 0 ? cleaned : undefined;
+    }
+    if (typeof meta.type === 'string') {
+      const trimmed = meta.type.trim();
+      return trimmed.length > 0 ? [trimmed] : undefined;
+    }
+    return undefined;
+  })();
+
   return {
-    authorName: meta.authorName,
-    authorAvatar: meta.authorAvatar,
-    title: meta.title,
-    likeCount:
-      typeof meta.likeCount === 'number' && Number.isFinite(meta.likeCount)
-        ? meta.likeCount
-        : undefined,
-    commentCount:
-      typeof meta.commentCount === 'number' &&
-      Number.isFinite(meta.commentCount)
-        ? meta.commentCount
-        : undefined,
-    favoriteCount:
-      typeof meta.favoriteCount === 'number' &&
-      Number.isFinite(meta.favoriteCount)
-        ? meta.favoriteCount
-        : undefined,
+    name: normalizedName,
+    icon: normalizedIcon,
+    type: normalizedType,
+    details: normalizedDetails,
+    authorName: normalizedAuthorName,
+    authorAvatar: normalizedAuthorAvatar,
+    title: normalizedTitle,
+    likeCount: pickCount(meta.likeCount),
+    commentCount: pickCount(meta.commentCount),
+    favoriteCount: pickCount(meta.favoriteCount),
     isLiked: meta.isLiked,
     isBookmarked: meta.isBookmarked,
     isFollowed: meta.isFollowed,
-    watchMoreText: meta.watchMoreText,
+    watchMoreText: normalizedWatchMore,
+    isShowPaly: meta.isShowPaly,
   };
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   SafeAreaView,
   StatusBar,
@@ -7,13 +7,11 @@ import {
   View,
   Pressable,
   InteractionManager,
-  ScrollView,
 } from 'react-native';
 import {
   initialize,
   TuiplayerShortVideoView,
   TuiplayerListPlayMode,
-  TuiplayerResolutionType,
   type ShortVideoSource,
   type ShortVideoOverlayMeta,
   type TuiplayerShortVideoViewHandle,
@@ -37,146 +35,15 @@ type Video = {
   [key: string]: unknown;
 };
 
-const FEATURE_ENDPOINT = 'http://175.178.78.190/dramango/v1/video/feature';
-const GET_TOKEN_ENDPOINT = 'http://175.178.78.190/dramango/v1/auth/login';
-const tokenParams = {
-  user: 'user' + Date.now(),
-  password: 'userpassword',
-};
-let authorizationToken =
-  'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiIxMDM0NSIsInVuaW9uSWQiOiIiLCJleHAiOjE3NjA4NzIyMDQuMTIyMzU2LCJpYXQiOjE3NjAyNjc0MDQuMTIyMzU3LCJpc3MiOiJEcmFtYVgifQ.AbjXiT-mgOOJFNMdNM2OhMvm7FSSqPVrVdwHbKApsCU';
 const PAGE_SIZE = 10;
+const LICENSE_URL = process.env.TUIPLAYER_LICENSE_URL ?? '';
+const LICENSE_KEY = process.env.TUIPLAYER_LICENSE_KEY ?? '';
 
-const buildApiHeaders = (): Record<
-  'Content-Type' | 'Authorization',
-  string
-> => ({
-  'Content-Type': 'application/json',
-  'Authorization': authorizationToken,
-});
-
-const extractVideoList = (payload: unknown): Video[] => {
-  if (Array.isArray(payload)) {
-    return payload as Video[];
-  }
-
-  if (payload && typeof payload === 'object') {
-    const topLevel = payload as Record<string, unknown>;
-
-    for (const key of ['body', 'data', 'result', 'payload']) {
-      if (!(key in topLevel)) {
-        continue;
-      }
-      const nested = topLevel[key];
-      if (Array.isArray(nested)) {
-        return nested as Video[];
-      }
-      if (nested && typeof nested === 'object') {
-        const nestedObj = nested as Record<string, unknown>;
-        for (const innerKey of [
-          'list',
-          'rows',
-          'items',
-          'videos',
-          'records',
-          'content',
-        ]) {
-          const inner = nestedObj[innerKey];
-          if (Array.isArray(inner)) {
-            return inner as Video[];
-          }
-        }
-      }
-    }
-
-    for (const key of [
-      'list',
-      'rows',
-      'items',
-      'videos',
-      'records',
-      'content',
-      'result',
-    ]) {
-      const value = topLevel[key];
-      if (Array.isArray(value)) {
-        return value as Video[];
-      }
-    }
-  }
-
-  return [];
-};
-
-const TOKEN_CONTAINER_KEYS = ['body', 'data', 'result', 'payload'] as const;
-const TOKEN_VALUE_KEYS = [
-  'token',
-  'authToken',
-  'authorization',
-  'accessToken',
-  'access_token',
-  'jwt',
-  'jwtToken',
-] as const;
-
-const extractTokenFromPayload = (payload: unknown): string | null => {
-  if (typeof payload === 'string') {
-    const trimmed = payload.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  }
-  if (Array.isArray(payload)) {
-    for (const item of payload) {
-      const candidate = extractTokenFromPayload(item);
-      if (candidate) {
-        return candidate;
-      }
-    }
-    return null;
-  }
-  if (!payload || typeof payload !== 'object') {
-    return null;
-  }
-  const container = payload as Record<string, unknown>;
-  for (const key of TOKEN_VALUE_KEYS) {
-    const value = container[key];
-    if (typeof value === 'string' && value.trim().length > 0) {
-      return value.trim();
-    }
-  }
-  for (const key of TOKEN_CONTAINER_KEYS) {
-    if (key in container) {
-      const nested = extractTokenFromPayload(container[key]);
-      if (nested) {
-        return nested;
-      }
-    }
-  }
-  return null;
-};
+const OVERRIDE_VIDEO_URL =
+  'https://gz001-1377187151.cos.ap-guangzhou.myqcloud.com/Short1080150w/S00329-The Dumb Billionaire Heiress In Love Part II/2.mp4';
 
 const buildVideoSource = (video: Video): ShortVideoSource | null => {
-  const rawLinks = video.links720p;
-  let rawUrl: string | undefined;
-
-  if (typeof rawLinks === 'string') {
-    rawUrl = rawLinks;
-  } else if (Array.isArray(rawLinks)) {
-    rawUrl = rawLinks.find(
-      (item): item is string => typeof item === 'string' && item.length > 0
-    );
-  }
-
-  if (!rawUrl) {
-    return null;
-  }
-
-  const resolvedUrl =
-    typeof video.episode === 'number' &&
-    Number.isFinite(video.episode) &&
-    /Episodes/i.test(rawUrl)
-      ? rawUrl.replace(/Episodes/gi, String(video.episode))
-      : rawUrl;
-
+  const resolvedUrl = OVERRIDE_VIDEO_URL;
   const coverPictureUrl = [
     video.img,
     video.icon,
@@ -186,48 +53,24 @@ const buildVideoSource = (video: Video): ShortVideoSource | null => {
     (value): value is string => typeof value === 'string' && value.length > 0
   );
 
-  const authorName =
-    pickString(
-      video.authorName,
-      video.author,
-      video.uploader,
-      video.source,
-      video.name
-    ) ?? '官方账号';
-  const authorAvatar = pickString(
-    video.authorAvatar,
-    video.avatar,
-    video.icon,
-    video.img
-  );
   return {
     type: 'url',
     url: resolvedUrl,
     coverPictureUrl,
     autoPlay: true,
     meta: {
-      authorName,
-      authorAvatar,
-      title: video.details,
-      watchMoreText: `观看全集>>第${video.episode ?? 1}集`,
-      likeCount: pickNumber(video.likeCount, video.likes) || 11010,
-      commentCount: pickNumber(video.commentCount, video.comments) || 999,
+      name: video.name || video.details || '未命名视频',
+      icon: coverPictureUrl,
+      type: video.type,
+      details: video.details || `观看全集>>第${video.episode ?? 1}集`,
+      likeCount: 110,
       favoriteCount:
         pickNumber(video.favoriteCount, video.collectCount) || 9999,
+      isShowPaly: true,
       isLiked: pickBoolean(video.isLiked, video.liked),
       isBookmarked: pickBoolean(video.isBookmarked, video.favorited),
-      isFollowed: pickBoolean(video.isFollowed, video.followed),
     },
   };
-};
-
-const pickString = (...values: unknown[]): string | undefined => {
-  for (const value of values) {
-    if (typeof value === 'string' && value.trim().length > 0) {
-      return value.trim();
-    }
-  }
-  return undefined;
 };
 
 const pickNumber = (...values: unknown[]): number | undefined => {
@@ -284,119 +127,65 @@ const pickBoolean = (...values: unknown[]): boolean | undefined => {
   return undefined;
 };
 
-async function refreshAuthorizationToken(): Promise<string> {
-  const payload = {
-    ...tokenParams,
-    user: 'user' + Date.now(),
+const hasValidMetaType = (
+  value: ShortVideoOverlayMeta['type'] | undefined
+): boolean => {
+  if (typeof value === 'string') {
+    return value.trim().length > 0;
+  }
+  if (Array.isArray(value)) {
+    return value.some(
+      (tag) => typeof tag === 'string' && tag.trim().length > 0
+    );
+  }
+  return false;
+};
+
+const ensureMetaType = (
+  meta: ShortVideoOverlayMeta,
+  ...fallbacks: Array<ShortVideoOverlayMeta['type'] | undefined>
+): ShortVideoOverlayMeta => {
+  if (hasValidMetaType(meta.type)) {
+    return meta;
+  }
+  const fallback = fallbacks.find(hasValidMetaType);
+  if (!fallback) {
+    const { ...rest } = meta;
+    return rest;
+  }
+  return {
+    ...meta,
+    type: fallback,
   };
-  const response = await fetch(GET_TOKEN_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify(payload),
-  });
+};
 
-  if (!response.ok) {
-    const message = await response.text().catch(() => '');
-    throw new Error(`刷新 token 接口返回错误 ${response.status}: ${message}`);
-  }
-
-  const tokenPayload = await response.json().catch(() => {
-    throw new Error('刷新 token 接口返回了非 JSON 数据');
-  });
-  const rawToken = extractTokenFromPayload(tokenPayload);
-  if (!rawToken) {
-    throw new Error('刷新 token 接口未返回 token');
-  }
-  const formattedToken = rawToken.startsWith('Bearer ')
-    ? rawToken
-    : `Bearer ${rawToken}`;
-  authorizationToken = formattedToken;
-  console.info('[ShortVideo] token 已更新');
-  return formattedToken;
-}
-
+// 示例播放固定 URL，省去接口/token 请求
 async function requestFeaturedVideos(
-  page: number,
-  limit: number = PAGE_SIZE
+  _page: number,
+  _limit: number = PAGE_SIZE
 ): Promise<Video[]> {
-  const performRequest = () =>
-    fetch(FEATURE_ENDPOINT, {
-      method: 'POST',
-      headers: buildApiHeaders(),
-      body: JSON.stringify({
-        page,
-        limit,
-      }),
-      credentials: 'include',
-    });
-
-  let response = await performRequest();
-
-  if (response.status === 401) {
-    try {
-      await refreshAuthorizationToken();
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : String(error ?? '未知错误');
-      throw new Error(`刷新 token 失败: ${message}`);
-    }
-    response = await performRequest();
-  }
-
-  if (!response.ok) {
-    const message = await response.text().catch(() => '');
-    throw new Error(`接口返回错误 ${response.status}: ${message}`);
-  }
-
-  const payload = await response.json().catch(() => {
-    throw new Error('接口返回了非 JSON 数据');
-  });
-
-  if (payload && typeof payload === 'object') {
-    const container = payload as Record<string, unknown>;
-    const code =
-      typeof container.code === 'number' ? container.code : undefined;
-    if (code !== undefined && code !== 0) {
-      const message =
-        (typeof container.msg === 'string' && container.msg.length > 0
-          ? container.msg
-          : null) ?? `接口返回错误 code=${code}`;
-      throw new Error(message);
-    }
-    console.log('response=============', container);
-    const target =
-      container.body ??
-      container.data ??
-      container.result ??
-      container.payload ??
-      payload;
-    return extractVideoList(target);
-  }
-
-  return extractVideoList(payload);
+  return [
+    {
+      name: '调试视频',
+      url: OVERRIDE_VIDEO_URL,
+      cover: undefined,
+    },
+  ];
 }
 
-const LICENSE_URL = '4ddf62fce4de0a8fe505415a45a27823';
-const LICENSE_KEY =
-  'https://1377187151.trtcube-license.cn/license/v2/1377187151_1/v_cube.license';
 const TEST_SUBTITLE_URL =
-  'https://deu-1377187151.cos.eu-frankfurt.myqcloud.com/SRT/S00337-The%20Pendleton%20Secrete/3_zh.vtt';
+  'https://cdn.sparktube.top/SRT/S00269-My%20Sister%20Stole%20My%20Man/1_zh.vtt';
 
 export default function App() {
-  const [autoPlay, setAutoPlay] = useState(true);
+  const [autoPlay] = useState(true);
   const [paused, setPaused] = useState(false);
   const [sources, setSources] = useState<ShortVideoSource[]>([]);
-  const [userInputEnabled, setUserInputEnabled] = useState(true);
-  const [playModeValue, setPlayModeValue] = useState(
-    TuiplayerListPlayMode.MODE_LIST_LOOP ?? 0
-  );
+  const [userInputEnabled] = useState(true);
+  const [playModeValue] = useState(TuiplayerListPlayMode.MODE_LIST_LOOP ?? 0);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [, setErrorMessage] = useState<string | null>(null);
   const [vodStatus, setVodStatus] = useState<{
     playing?: boolean;
     currentTime?: number;
@@ -409,6 +198,7 @@ export default function App() {
     muted?: boolean;
     error?: string;
   }>({});
+  const [playerBottom, setPlayerBottom] = useState<10 | 11>(10);
 
   const fetchLockRef = useRef(false);
   const isMountedRef = useRef(true);
@@ -416,14 +206,18 @@ export default function App() {
   const hasAutoStartedRef = useRef(false);
   const autoPlayRef = useRef(autoPlay);
   const pausedRef = useRef(paused);
+  const vodStatusRef = useRef(vodStatus);
   const hasLoggedFirstRef = useRef(false);
+  const overlaySeqRef = useRef(0);
+  const togglePlayerBottom = useCallback(() => {
+    setPlayerBottom((value) => (value === 10 ? 11 : 10));
+  }, []);
 
   useEffect(() => {
     try {
       initialize({
-        licenseUrl:
-          'https://1377187151.trtcube-license.cn/license/v2/1377187151_1/v_cube.license',
-        licenseKey: '4ddf62fce4de0a8fe505415a45a27823',
+        licenseUrl: LICENSE_URL,
+        licenseKey: LICENSE_KEY,
         enableLog: true,
       });
     } catch (error) {
@@ -437,6 +231,17 @@ export default function App() {
 
   useEffect(() => {
     pausedRef.current = paused;
+  }, [paused]);
+
+  useEffect(() => {
+    vodStatusRef.current = vodStatus;
+  }, [vodStatus]);
+
+  useEffect(() => {
+    console.log('[ShortVideo] paused prop 更新', {
+      paused,
+      playingState: vodStatusRef.current.playing,
+    });
   }, [paused]);
 
   const triggerInitialAutoPlay = useCallback(() => {
@@ -492,35 +297,57 @@ export default function App() {
     }
   }, [loading, sources, triggerInitialAutoPlay]);
 
-  const licenseConfigured = Boolean(LICENSE_KEY && LICENSE_URL);
-
   const ensureTestSubtitle = useCallback((list: ShortVideoSource[]) => {
+    console.log(
+      '[ShortVideo] ensureTestSubtitle 被调用，视频数量:',
+      list.length
+    );
+
     if (list.length === 0) {
       return list;
     }
-    const [first, ...rest] = list;
-    if (!first) {
-      return list;
-    }
-    if (first.subtitles?.some((item) => item.url === TEST_SUBTITLE_URL)) {
-      return list;
-    }
-    const enhanced: ShortVideoSource = {
-      ...first,
-      subtitles: [
-        ...(first.subtitles ?? []),
-        {
-          name: '中文字幕',
-          url: TEST_SUBTITLE_URL,
-          mimeType: 'text/vtt',
-        },
-      ],
-    };
-    return [enhanced, ...rest];
+
+    // 为所有视频添加字幕，方便调试
+    const enhanced = list.map((video, index) => {
+      const hasSubtitle = video.subtitles?.some(
+        (item) => item.url === TEST_SUBTITLE_URL
+      );
+
+      if (hasSubtitle) {
+        console.log(`[ShortVideo] 视频${index}已有字幕，跳过`);
+        return video;
+      }
+
+      const videoWithSubtitle: ShortVideoSource = {
+        ...video,
+        subtitles: [
+          ...(video.subtitles ?? []),
+          {
+            name: '中文字幕',
+            url: TEST_SUBTITLE_URL,
+            mimeType: 'text/vtt',
+          },
+        ],
+      };
+
+      console.log(`[ShortVideo] 添加字幕到视频${index}:`, {
+        videoUrl: video.url?.substring(0, 50) + '...',
+        subtitleUrl: TEST_SUBTITLE_URL,
+        subtitlesCount: videoWithSubtitle.subtitles?.length,
+      });
+
+      return videoWithSubtitle;
+    });
+
+    return enhanced;
   }, []);
 
   const loadRemotePage = useCallback(
-    async (targetPage: number, append: boolean) => {
+    async (
+      targetPage: number,
+      append: boolean,
+      options?: { topLoading?: boolean; bottomLoading?: boolean }
+    ) => {
       if (fetchLockRef.current) {
         return;
       }
@@ -528,6 +355,12 @@ export default function App() {
       setLoading(true);
       if (!append) {
         setErrorMessage(null);
+      }
+      if (options?.topLoading) {
+        playerRef.current?.setTopLoadingVisible(true);
+      }
+      if (options?.bottomLoading) {
+        playerRef.current?.setBottomLoadingVisible(true);
       }
 
       try {
@@ -559,75 +392,46 @@ export default function App() {
         if (isMountedRef.current) {
           setLoading(false);
         }
+        if (options?.topLoading) {
+          playerRef.current?.setTopLoadingVisible(false);
+        }
+        if (options?.bottomLoading) {
+          playerRef.current?.setBottomLoadingVisible(false);
+        }
         fetchLockRef.current = false;
       }
     },
     [ensureTestSubtitle]
   );
 
-  const resetSources = useCallback(() => {
-    setPaused(false);
-    hasAutoStartedRef.current = false;
-    fetchLockRef.current = false;
-    setPage(1);
-    setHasMore(true);
-    setLoading(false);
-    setErrorMessage(null);
-    hasLoggedFirstRef.current = false;
+  const resetSources = useCallback(
+    (withTopLoading = false) => {
+      setPaused(false);
+      hasAutoStartedRef.current = false;
+      fetchLockRef.current = false;
+      setPage(1);
+      setHasMore(true);
+      setLoading(false);
+      setErrorMessage(null);
+      hasLoggedFirstRef.current = false;
+      setPlayerBottom(10);
 
-    setSources([]);
-    loadRemotePage(1, false);
-  }, [loadRemotePage]);
+      setSources([]);
+      loadRemotePage(
+        1,
+        false,
+        withTopLoading ? { topLoading: true } : undefined
+      );
+    },
+    [loadRemotePage]
+  );
 
   const loadMoreRemote = useCallback(() => {
     if (loading || !hasMore) {
       return;
     }
-    loadRemotePage(page + 1, true);
+    loadRemotePage(page + 1, true, { bottomLoading: true });
   }, [hasMore, loading, loadRemotePage, page]);
-
-  const handleAppend = useCallback(() => {
-    loadMoreRemote();
-  }, [loadMoreRemote]);
-
-  const handleReset = useCallback(() => {
-    resetSources();
-  }, [resetSources]);
-
-  const handleTogglePlayMode = useCallback(() => {
-    const listLoop = TuiplayerListPlayMode.MODE_LIST_LOOP ?? 0;
-    const oneLoop = TuiplayerListPlayMode.MODE_ONE_LOOP ?? 1;
-    setPlayModeValue((prev) => {
-      const next = prev === oneLoop ? listLoop : oneLoop;
-      playerRef.current?.setPlayMode(next);
-      return next;
-    });
-  }, []);
-
-  const handleToggleScrollEnabled = useCallback(() => {
-    setUserInputEnabled((prev) => {
-      const next = !prev;
-      playerRef.current?.setUserInputEnabled(next);
-      return next;
-    });
-  }, []);
-
-  const handleJumpToStart = useCallback(() => {
-    playerRef.current?.startPlayIndex(0, true);
-  }, []);
-
-  const handleSwitchResolution = useCallback(() => {
-    const target = TuiplayerResolutionType.CURRENT ?? 1;
-    playerRef.current?.switchResolution(1280 * 720, target);
-  }, []);
-
-  const handlePausePreload = useCallback(() => {
-    playerRef.current?.pausePreload();
-  }, []);
-
-  const handleResumePreload = useCallback(() => {
-    playerRef.current?.resumePreload();
-  }, []);
 
   const handleEndReached = useCallback(() => {
     console.log('[ShortVideo] 到达列表末尾');
@@ -640,8 +444,12 @@ export default function App() {
         '[ShortVideo] 已滑动到顶部，可下拉刷新',
         event.nativeEvent.offset
       );
+      if (loading) {
+        return;
+      }
+      resetSources(true);
     },
-    []
+    [loading, resetSources]
   );
 
   const applyOverlayMeta = useCallback(
@@ -690,78 +498,178 @@ export default function App() {
       if (index < 0 || action == null) {
         return;
       }
+      const seq = ++overlaySeqRef.current;
+      console.log('[ShortVideo] overlayAction 收到事件', {
+        seq,
+        action,
+        index,
+        pausedProp: pausedRef.current,
+        playingState: vodStatusRef.current.playing,
+        payload,
+      });
       applyOverlayMeta(index, (current) => {
         const nativeMeta = (payload?.source as { meta?: ShortVideoOverlayMeta })
           ?.meta;
         const baseMeta: ShortVideoOverlayMeta = {
-          ...(current.meta ?? {}),
           ...(nativeMeta ?? {}),
+          ...(current.meta ?? {}),
         };
+        console.log('[ShortVideo] overlayAction meta 合并', {
+          seq,
+          index,
+          action,
+          currentMeta: current.meta,
+          nativeMeta,
+          mergedMeta: baseMeta,
+        });
+        const withMetaType = (
+          meta: ShortVideoOverlayMeta
+        ): ShortVideoOverlayMeta =>
+          ensureMetaType(
+            meta,
+            baseMeta.type,
+            current.meta?.type,
+            nativeMeta?.type
+          );
         switch (action) {
-          case 'watchMore': {
-            console.log(
-              '[ShortVideo] 点击观看更多，当前状态：',
-              baseMeta.watchMoreText
-            );
-            return {
-              ...current,
-            };
-          }
           case 'like': {
             const liked = baseMeta.isLiked ?? false;
             const base = ensureNumber(baseMeta.likeCount, 0);
-            console.log('[ShortVideo] 点赞操作，当前状态：', liked);
+            console.log('[ShortVideo] 点赞操作，当前状态：', {
+              seq,
+              liked,
+              index,
+              pausedProp: pausedRef.current,
+              playingState: vodStatusRef.current.playing,
+              currentMeta: current.meta,
+              nativeMeta,
+              baseMeta,
+            });
+
+            const newMeta = withMetaType({
+              ...baseMeta,
+              isLiked: !liked,
+              likeCount: Math.max(0, base + (liked ? -1 : 1)),
+            });
+            console.log('[ShortVideo] 点赞操作完成', {
+              seq,
+              index,
+              prevLiked: liked,
+              nextLiked: newMeta.isLiked,
+              prevCount: base,
+              nextCount: newMeta.likeCount,
+              newMetaType: newMeta.type,
+            });
+            console.log('[ShortVideo] 点赞 updateMeta 调用', {
+              seq,
+              index,
+              meta: newMeta,
+            });
+            try {
+              playerRef.current?.updateMeta(index, newMeta);
+              console.log('[ShortVideo] 点赞 updateMeta 完成', { seq, index });
+            } catch (error) {
+              console.warn('[ShortVideo] 点赞 updateMeta 失败', {
+                seq,
+                index,
+                error,
+              });
+            }
 
             return {
               ...current,
-              meta: {
-                ...baseMeta,
-                isLiked: !liked,
-                likeCount: Math.max(0, base + (liked ? -1 : 1)),
-              },
+              meta: newMeta,
             };
           }
           case 'favorite': {
             const bookmarked = baseMeta.isBookmarked ?? false;
             const base = ensureNumber(baseMeta.favoriteCount, 0);
-            console.log('[ShortVideo] 收藏操作，当前状态：', bookmarked);
+            console.log('[ShortVideo] 收藏操作，当前状态：', {
+              seq,
+              bookmarked,
+              index,
+              pausedProp: pausedRef.current,
+              playingState: vodStatusRef.current.playing,
+              currentMeta: current.meta,
+              nativeMeta,
+              baseMeta,
+            });
+
+            const newMeta = withMetaType({
+              ...baseMeta,
+              isBookmarked: !bookmarked,
+              favoriteCount: Math.max(0, base + (bookmarked ? -1 : 1)),
+            });
+            console.log('[ShortVideo] 收藏操作完成', {
+              seq,
+              index,
+              prevBookmarked: bookmarked,
+              nextBookmarked: newMeta.isBookmarked,
+              prevCount: base,
+              nextCount: newMeta.favoriteCount,
+              newMetaType: newMeta.type,
+            });
+            console.log('[ShortVideo] 收藏 updateMeta 调用', {
+              seq,
+              index,
+              meta: newMeta,
+            });
+            try {
+              playerRef.current?.updateMeta(index, newMeta);
+              console.log('[ShortVideo] 收藏 updateMeta 完成', { seq, index });
+            } catch (error) {
+              console.warn('[ShortVideo] 收藏 updateMeta 失败', {
+                seq,
+                index,
+                error,
+              });
+            }
+
             return {
               ...current,
-              meta: {
-                ...baseMeta,
-                isBookmarked: !bookmarked,
-                favoriteCount: Math.max(0, base + (bookmarked ? -1 : 1)),
-              },
+              meta: newMeta,
             };
+          }
+          case 'icon': {
+            console.log('[ShortVideo] 点击图标/封面');
+            return current;
+          }
+          case 'name': {
+            console.log('[ShortVideo] 点击名称/标题');
+            return current;
+          }
+          case 'details': {
+            console.log('[ShortVideo] 点击详情');
+            return current;
+          }
+          case 'play': {
+            console.log('[ShortVideo] 点击播放按钮');
+            return current;
           }
           case 'comment': {
-            console.log('[ShortVideo] 点击评论，打开评论面板');
-            return {
-              ...current,
-              meta: {
-                ...baseMeta,
-                commentCount: ensureNumber(baseMeta.commentCount, 0) + 1,
-              },
-            };
-          }
-          case 'avatar': {
-            const followed = baseMeta.isFollowed ?? false;
-            console.log('[ShortVideo] 关注操作，当前状态：', followed);
-            return {
-              ...current,
-              meta: {
-                ...baseMeta,
-                isFollowed: !followed,
-              },
-            };
-          }
-          case 'author': {
-            console.log('[ShortVideo] 点击作者信息栏');
+            console.log('[ShortVideo] more');
             return current;
           }
           default:
+            console.log('action===============', action);
             return current;
         }
+      });
+      setSources((prev) => {
+        if (index < 0 || index >= prev.length) {
+          return prev;
+        }
+        const next = prev;
+        console.log('[ShortVideo] overlayAction setSources 触发', {
+          seq,
+          action,
+          index,
+          pausedProp: pausedRef.current,
+          playingState: vodStatusRef.current.playing,
+          prevMeta: prev[index]?.meta,
+          overlaySeq: overlaySeqRef.current,
+        });
+        return next;
       });
     },
     [applyOverlayMeta]
@@ -848,55 +756,26 @@ export default function App() {
             next = prev;
             break;
         }
+        if (
+          type === 'overlayAction' ||
+          type === 'onPlayPause' ||
+          type === 'onPlayBegin' ||
+          type === 'onPlayEnd' ||
+          type === 'onPlayStop'
+        ) {
+          console.log('[ShortVideo] VodEvent 调试', {
+            type,
+            payload,
+            pausedProp: pausedRef.current,
+            playingState: vodStatusRef.current.playing,
+            nextPlaying: next.playing,
+          });
+        }
         return next;
       });
     },
     [handleOverlayAction]
   );
-
-  const infoText = useMemo(() => {
-    const parts = [
-      '当前模式：接口',
-      `自动播放：${autoPlay ? '开启' : '关闭'}`,
-      `手动暂停：${paused ? '是' : '否'}`,
-      `滑动可用：${userInputEnabled ? '是' : '否'}`,
-      `视频数量：${sources.length}`,
-    ];
-    const listLoop = TuiplayerListPlayMode.MODE_LIST_LOOP ?? 0;
-    parts.push(
-      `播放模式：${playModeValue === listLoop ? '列表循环' : '单个循环'}`
-    );
-    parts.push(`页码：${page}`);
-    parts.push(`可继续加载：${hasMore ? '是' : '否'}`);
-    return parts.join(' / ');
-  }, [
-    autoPlay,
-    hasMore,
-    page,
-    paused,
-    playModeValue,
-    sources.length,
-    userInputEnabled,
-  ]);
-
-  const appendButtonLabel = useMemo(() => {
-    if (loading) {
-      return '接口数据加载中...';
-    }
-    if (!hasMore) {
-      return '没有更多接口视频';
-    }
-    return '加载更多接口视频';
-  }, [hasMore, loading]);
-
-  const resetButtonLabel = useMemo(() => '重新加载接口数据', []);
-
-  const statusText = useMemo(() => {
-    if (loading) {
-      return '接口数据加载中...';
-    }
-    return hasMore ? '上滑可继续加载更多接口数据' : '已到达接口数据最后一页';
-  }, [hasMore, loading]);
 
   const refreshVodStatus = useCallback(async () => {
     const handle = playerRef.current;
@@ -955,233 +834,50 @@ export default function App() {
       const reason = hasLoggedFirstRef.current ? '页面切换' : '首次加载';
       hasLoggedFirstRef.current = true;
       console.log('[ShortVideo] 页面事件', { reason, index, total });
-      if (reason === '首次加载' && autoPlayRef.current && !pausedRef.current) {
-        playerRef.current?.startPlayIndex(0, true);
+      if (reason === '首次加载') {
+        if (autoPlayRef.current && !pausedRef.current) {
+          playerRef.current?.startPlayIndex(0, true);
+          setTimeout(() => {
+            togglePlayerBottom();
+          }, 300);
+        }
+      } else {
+        togglePlayerBottom();
       }
       hasAutoStartedRef.current = true;
       logCurrentSource(reason, index, total);
       refreshVodStatus();
     },
-    [logCurrentSource, refreshVodStatus]
+    [logCurrentSource, refreshVodStatus, togglePlayerBottom]
   );
-
-  const vodStatusText = useMemo(() => {
-    const {
-      playing,
-      currentTime,
-      duration,
-      playable,
-      bitrateIndex,
-      resolutions,
-      loop,
-      rate,
-      muted,
-    } = vodStatus;
-    const parts: string[] = [];
-    if (typeof playing === 'boolean') {
-      parts.push(`播放中：${playing ? '是' : '否'}`);
-    }
-    if (typeof loop === 'boolean') {
-      parts.push(`循环：${loop ? '开启' : '关闭'}`);
-    }
-    if (typeof rate === 'number') {
-      parts.push(`速率：${rate.toFixed(2)}`);
-    }
-    if (typeof muted === 'boolean') {
-      parts.push(`静音：${muted ? '是' : '否'}`);
-    }
-    if (typeof currentTime === 'number') {
-      parts.push(`定位：${currentTime}s`);
-    }
-    if (typeof duration === 'number') {
-      parts.push(`总时长：${duration}s`);
-    }
-    if (typeof playable === 'number') {
-      parts.push(`缓冲：${playable}s`);
-    }
-    if (typeof bitrateIndex === 'number') {
-      parts.push(`码率档：#${bitrateIndex}`);
-    }
-    if (resolutions?.length) {
-      const desc = resolutions
-        .map((item) => `${item.index}:${item.width}×${item.height}`)
-        .join(', ');
-      parts.push(`可选清晰度：[${desc}]`);
-    }
-    return parts.join(' / ') || '播放器状态待刷新';
-  }, [vodStatus]);
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <ScrollView style={styles.toolbar}>
-        {/* <Text style={styles.title}>TUIPlayer 短视频示例</Text> */}
-        <Text style={styles.caption}>{infoText}</Text>
-        {statusText ? <Text style={styles.caption}>{statusText}</Text> : null}
-        {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
-        {!licenseConfigured ? (
-          <Text style={styles.warning}>
-            ⚠️ 未配置 License，将使用公开示例数据，正式上线请替换为真实
-            License。
-          </Text>
-        ) : null}
-
+      <View style={styles.toolbar}>
         <View style={styles.buttonRow}>
           <ActionButton
-            label={autoPlay ? '关闭自动播放' : '开启自动播放'}
-            onPress={() => setAutoPlay((prev) => !prev)}
-          />
-        </View>
-
-        <View style={styles.buttonRow}>
-          <ActionButton
-            label={paused ? '恢复播放' : '暂停当前视频'}
-            onPress={() => setPaused((prev) => !prev)}
-          />
-          <ActionButton label="切换播放模式" onPress={handleTogglePlayMode} />
-          <ActionButton
-            label="调用 setPlayMode"
+            label="清屏幕"
             onPress={() => {
-              const listLoop = TuiplayerListPlayMode.MODE_LIST_LOOP ?? 0;
-              const oneLoop = TuiplayerListPlayMode.MODE_ONE_LOOP ?? 1;
-              const next = playModeValue === oneLoop ? listLoop : oneLoop;
-              playerRef.current?.setPlayMode(next);
-              setPlayModeValue(next);
+              playerRef.current?.clearScreen();
             }}
           />
         </View>
-
         <View style={styles.buttonRow}>
           <ActionButton
-            label={userInputEnabled ? '禁止滑动' : '允许滑动'}
-            onPress={handleToggleScrollEnabled}
+            label="恢复屏幕"
+            onPress={() => {
+              playerRef.current?.restoreScreen();
+            }}
           />
-          <ActionButton label="跳到第一个视频" onPress={handleJumpToStart} />
         </View>
-
-        <View style={styles.buttonRow}>
-          <ActionButton
-            label={appendButtonLabel}
-            onPress={handleAppend}
-            disabled={loading || !hasMore}
-          />
-          <ActionButton label={resetButtonLabel} onPress={handleReset} />
-        </View>
-
-        <View style={styles.buttonRow}>
-          <ActionButton label="切换到 720P" onPress={handleSwitchResolution} />
-        </View>
-
-        <View style={styles.buttonRow}>
-          <ActionButton label="暂停预加载" onPress={handlePausePreload} />
-          <ActionButton label="恢复预加载" onPress={handleResumePreload} />
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>播放器调试</Text>
-          <Text style={styles.caption}>{vodStatusText}</Text>
-          <View style={styles.buttonRow}>
-            <ActionButton label="刷新状态" onPress={refreshVodStatus} />
-            <ActionButton
-              label="播放/暂停"
-              onPress={async () => {
-                try {
-                  const playing =
-                    await playerRef.current?.vodPlayer.isPlaying();
-                  if (playing) {
-                    await playerRef.current?.vodPlayer.pause();
-                  } else {
-                    await playerRef.current?.vodPlayer.resume();
-                  }
-                } catch (error) {
-                  console.warn('[ShortVideo] 播放切换失败:', error);
-                } finally {
-                  await refreshVodStatus();
-                }
-              }}
-            />
-          </View>
-          <View style={styles.buttonRow}>
-            <ActionButton
-              label="跳至60秒"
-              onPress={async () => {
-                try {
-                  await playerRef.current?.vodPlayer.seekTo(60);
-                } catch (error) {
-                  console.warn('[ShortVideo] 跳转失败:', error);
-                } finally {
-                  await refreshVodStatus();
-                }
-              }}
-            />
-            <ActionButton
-              label="循环切换"
-              onPress={async () => {
-                try {
-                  const loop = await playerRef.current?.vodPlayer.isLoop();
-                  await playerRef.current?.vodPlayer.setLoop(!loop);
-                  setVodStatus((prev) => ({ ...prev, loop: !loop }));
-                } catch (error) {
-                  console.warn('[ShortVideo] 设置循环失败:', error);
-                } finally {
-                  await refreshVodStatus();
-                }
-              }}
-            />
-          </View>
-          <View style={styles.buttonRow}>
-            <ActionButton
-              label="1.25x 速度"
-              onPress={async () => {
-                try {
-                  await playerRef.current?.vodPlayer.setRate(1.25);
-                  setVodStatus((prev) => ({ ...prev, rate: 1.25 }));
-                } catch (error) {
-                  console.warn('[ShortVideo] 设置倍速失败:', error);
-                } finally {
-                  await refreshVodStatus();
-                }
-              }}
-            />
-            <ActionButton
-              label="恢复1.0x"
-              onPress={async () => {
-                try {
-                  await playerRef.current?.vodPlayer.setRate(1.0);
-                  setVodStatus((prev) => ({ ...prev, rate: 1.0 }));
-                } catch (error) {
-                  console.warn('[ShortVideo] 恢复倍速失败:', error);
-                } finally {
-                  await refreshVodStatus();
-                }
-              }}
-            />
-          </View>
-          <View style={styles.buttonRow}>
-            <ActionButton
-              label="静音切换"
-              onPress={async () => {
-                try {
-                  const muted = vodStatus.muted ?? false;
-                  await playerRef.current?.vodPlayer.setMute(!muted);
-                  setVodStatus((prev) => ({ ...prev, muted: !muted }));
-                } catch (error) {
-                  console.warn('[ShortVideo] 静音切换失败:', error);
-                } finally {
-                  await refreshVodStatus();
-                }
-              }}
-            />
-            <ActionButton label="拉取清晰度" onPress={refreshVodStatus} />
-          </View>
-        </View>
-      </ScrollView>
+      </View>
 
       <TuiplayerShortVideoView
         ref={playerRef}
         sources={sources}
         autoPlay={autoPlay}
-        style={styles.player}
+        style={[styles.player, { bottom: playerBottom }]}
         paused={paused}
         playMode={playModeValue}
         userInputEnabled={userInputEnabled}
@@ -1228,12 +924,11 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     position: 'absolute',
-    top: 0,
+    top: 100,
     left: 0,
     right: 0,
     zIndex: 10,
     opacity: 0.3,
-    height: 300,
   },
   title: {
     fontSize: 18,
@@ -1292,6 +987,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   player: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
   },
 });

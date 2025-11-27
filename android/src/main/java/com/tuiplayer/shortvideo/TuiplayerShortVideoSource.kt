@@ -30,32 +30,32 @@ internal data class TuiplayerShortVideoSource(
   )
 
   data class Metadata(
-    val authorName: String?,
-    val authorAvatar: String?,
-    val title: String?,
+    val name: String?,       // Was title
+    val icon: String?,       // Was episodeCover/authorAvatar
+    val type: List<String>?, // Was tags
+    val details: String?,    // Was description/authorName?
     val likeCount: Long?,
-    val commentCount: Long?,
     val favoriteCount: Long?,
+    val isShowPaly: Boolean?, // Was isPlayShow
+    // State fields (kept for logic)
     val isLiked: Boolean?,
-    val isBookmarked: Boolean?,
-    val isFollowed: Boolean?,
-    val watchMoreText: String?
+    val isBookmarked: Boolean?
   ) {
     val hasValue: Boolean =
       listOf(
-        authorName,
-        authorAvatar,
-        title,
+        name,
+        icon,
+        type,
+        details,
         likeCount,
-        commentCount,
         favoriteCount,
+        isShowPaly,
         isLiked,
-        isBookmarked,
-        isFollowed,
-        watchMoreText
+        isBookmarked
       ).any { value ->
         when (value) {
           is String -> value.isNotBlank()
+          is List<*> -> value.isNotEmpty()
           else -> value != null
         }
       }

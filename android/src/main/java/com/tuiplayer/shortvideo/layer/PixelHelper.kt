@@ -5,8 +5,8 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 internal object PixelHelper {
-  private const val DESIGN_WIDTH = 375f
-  private const val DESIGN_HEIGHT = 667f
+  private const val DESIGN_WIDTH = 1080f
+  private const val DESIGN_HEIGHT = 1920f
 
   private val displayMetrics
     get() = Resources.getSystem().displayMetrics

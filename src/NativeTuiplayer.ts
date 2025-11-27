@@ -23,6 +23,10 @@ export type ShortVideoSubtitlePayload = {
 };
 
 export type ShortVideoSourceMetaPayload = {
+  name?: string;
+  icon?: string;
+  type?: ReadonlyArray<string>;
+  details?: string;
   authorName?: string;
   authorAvatar?: string;
   title?: string;
@@ -33,6 +37,7 @@ export type ShortVideoSourceMetaPayload = {
   isBookmarked?: boolean;
   isFollowed?: boolean;
   watchMoreText?: string;
+  isShowPaly?: boolean;
 };
 
 export type ShortVideoSourcePayload = {

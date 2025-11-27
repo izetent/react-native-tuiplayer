@@ -11,6 +11,10 @@ import type {
 } from 'react-native/Libraries/Types/CodegenTypes';
 
 export type NativeShortVideoMeta = Readonly<{
+  name?: string;
+  icon?: string;
+  type?: ReadonlyArray<string>;
+  details?: string;
   authorName?: string;
   authorAvatar?: string;
   title?: string;
@@ -21,6 +25,7 @@ export type NativeShortVideoMeta = Readonly<{
   isBookmarked?: boolean;
   isFollowed?: boolean;
   watchMoreText?: string;
+  isShowPaly?: boolean;
 }>;
 
 export type NativeSubtitleSource = Readonly<{
@@ -184,6 +189,9 @@ type NativeCommands = {
     meta: NativeShortVideoMeta
   ) => void;
   syncPlaybackState: (ref: ComponentType) => void;
+  setOverlayVisible: (ref: ComponentType, visible: boolean) => void;
+  setTopLoadingVisible: (ref: ComponentType, visible: boolean) => void;
+  setBottomLoadingVisible: (ref: ComponentType, visible: boolean) => void;
 };
 
 export const Commands = codegenNativeCommands<NativeCommands>({
@@ -198,6 +206,9 @@ export const Commands = codegenNativeCommands<NativeCommands>({
     'setUserInputEnabled',
     'updateMeta',
     'syncPlaybackState',
+    'setOverlayVisible',
+    'setTopLoadingVisible',
+    'setBottomLoadingVisible',
   ],
 });
 

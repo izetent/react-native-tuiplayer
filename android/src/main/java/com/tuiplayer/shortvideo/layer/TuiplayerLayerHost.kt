@@ -14,4 +14,5 @@ internal interface TuiplayerHostAwareLayer {
   fun attachHost(host: TuiplayerLayerHost)
   fun onPlaybackStateChanged(paused: Boolean) {}
   fun onMetadataUpdated(source: TuiplayerShortVideoSource?) {}
+  fun onOverlayVisibilityChanged(visible: Boolean) {}
 }

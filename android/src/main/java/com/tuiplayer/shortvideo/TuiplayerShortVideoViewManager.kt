@@ -2,6 +2,7 @@ package com.tuiplayer.shortvideo
 
 import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.ReadableMap
+import com.facebook.react.bridge.ReadableType
 import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.uimanager.SimpleViewManager
 import com.facebook.react.uimanager.ThemedReactContext
@@ -26,6 +27,9 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
     private const val COMMAND_SET_USER_INPUT_ENABLED = 8
     private const val COMMAND_UPDATE_META = 9
     private const val COMMAND_SYNC_PLAYBACK_STATE = 10
+    private const val COMMAND_SET_OVERLAY_VISIBLE = 11
+    private const val COMMAND_SET_TOP_LOADING_VISIBLE = 12
+    private const val COMMAND_SET_BOTTOM_LOADING_VISIBLE = 13
   }
 
   override fun getName(): String = NAME
@@ -114,6 +118,9 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
       "setUserInputEnabled" to COMMAND_SET_USER_INPUT_ENABLED,
       "updateMeta" to COMMAND_UPDATE_META,
       "syncPlaybackState" to COMMAND_SYNC_PLAYBACK_STATE,
+      "setOverlayVisible" to COMMAND_SET_OVERLAY_VISIBLE,
+      "setTopLoadingVisible" to COMMAND_SET_TOP_LOADING_VISIBLE,
+      "setBottomLoadingVisible" to COMMAND_SET_BOTTOM_LOADING_VISIBLE,
     )
   }
 
@@ -130,6 +137,9 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
       "setUserInputEnabled" -> handleSetUserInputEnabled(view, args)
       "updateMeta" -> handleUpdateMeta(view, args)
       "syncPlaybackState" -> view.commandSyncPlaybackState()
+      "setOverlayVisible" -> handleSetOverlayVisible(view, args)
+      "setTopLoadingVisible" -> handleSetTopLoadingVisible(view, args)
+      "setBottomLoadingVisible" -> handleSetBottomLoadingVisible(view, args)
     }
   }
 
@@ -146,6 +156,9 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
       COMMAND_SET_USER_INPUT_ENABLED -> handleSetUserInputEnabled(view, args)
       COMMAND_UPDATE_META -> handleUpdateMeta(view, args)
       COMMAND_SYNC_PLAYBACK_STATE -> view.commandSyncPlaybackState()
+      COMMAND_SET_OVERLAY_VISIBLE -> handleSetOverlayVisible(view, args)
+      COMMAND_SET_TOP_LOADING_VISIBLE -> handleSetTopLoadingVisible(view, args)
+      COMMAND_SET_BOTTOM_LOADING_VISIBLE -> handleSetBottomLoadingVisible(view, args)
     }
   }
 
@@ -176,6 +189,21 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
     val metaMap = args.getMapOrNull(1) ?: return
     val metadata = metaMap.toShortVideoMetadata() ?: return
     view.updateMetadata(index, metadata)
+  }
+
+  private fun handleSetOverlayVisible(view: TuiplayerShortVideoView, args: ReadableArray?) {
+    val visible = args?.getBooleanOrDefault(0, true) ?: true
+    view.commandSetOverlayVisible(visible)
+  }
+
+  private fun handleSetTopLoadingVisible(view: TuiplayerShortVideoView, args: ReadableArray?) {
+    val visible = args?.getBooleanOrDefault(0, true) ?: true
+    view.commandSetTopLoadingVisible(visible)
+  }
+
+  private fun handleSetBottomLoadingVisible(view: TuiplayerShortVideoView, args: ReadableArray?) {
+    val visible = args?.getBooleanOrDefault(0, true) ?: true
+    view.commandSetBottomLoadingVisible(visible)
   }
 
   private fun parseSources(value: ReadableArray?): List<TuiplayerShortVideoSource> {
@@ -235,7 +263,28 @@ private fun ReadableMap.getArrayOrNull(key: String): ReadableArray? {
   return if (hasKey(key) && !isNull(key)) getArray(key) else null
 }
 
-private fun ReadableArray?.toStringList(): List<String> {
+private fun ReadableMap.getTagList(key: String): List<String>? {
+  if (!hasKey(key) || isNull(key)) {
+    return null
+  }
+  return when (getType(key)) {
+    ReadableType.Array -> getArray(key)?.toStringList()?.takeIf { it.isNotEmpty() }
+    ReadableType.String -> parseTagString(getString(key))
+    else -> null
+  }
+}
+
+private fun parseTagString(value: String?): List<String>? {
+  if (value.isNullOrBlank()) {
+    return null
+  }
+  val parts = value.split(Regex("[#|/、,，\\s]+"))
+    .map { it.trim() }
+    .filter { it.isNotEmpty() }
+  return if (parts.isEmpty()) null else parts
+}
+
+internal fun ReadableArray?.toStringList(): List<String> {
   if (this == null) {
     return emptyList()
   }
@@ -314,28 +363,30 @@ private fun ReadableArray?.toSubtitleList(): List<TuiplayerShortVideoSource.Subt
 }
 
 private fun ReadableMap.toShortVideoMetadata(): TuiplayerShortVideoSource.Metadata? {
-  val authorName = getStringOrNull("authorName")
-  val authorAvatar = getStringOrNull("authorAvatar")
-  val title = getStringOrNull("title")
+  val name = getStringOrNull("name")
+  val icon = getStringOrNull("icon")
+  val type = getTagList("type")
+  val details = getStringOrNull("details")
   val likeCount = getDoubleOrNull("likeCount")?.toLong()
-  val commentCount = getDoubleOrNull("commentCount")?.toLong()
   val favoriteCount = getDoubleOrNull("favoriteCount")?.toLong()
+  val isShowPaly = getBooleanOrNull("isShowPaly")
+  
+  // State fields
   val isLiked = getBooleanOrNull("isLiked")
   val isBookmarked = getBooleanOrNull("isBookmarked")
-  val isFollowed = getBooleanOrNull("isFollowed")
-  val watchMoreText = getStringOrNull("watchMoreText")
+
+  android.util.Log.d("TuiplayerMeta", "toShortVideoMetadata - type: $type")
 
   val metadata = TuiplayerShortVideoSource.Metadata(
-    authorName = authorName,
-    authorAvatar = authorAvatar,
-    title = title,
+    name = name,
+    icon = icon,
+    type = type,
+    details = details,
     likeCount = likeCount,
-    commentCount = commentCount,
     favoriteCount = favoriteCount,
+    isShowPaly = isShowPaly,
     isLiked = isLiked,
-    isBookmarked = isBookmarked,
-    isFollowed = isFollowed,
-    watchMoreText = watchMoreText
+    isBookmarked = isBookmarked
   )
   return metadata.takeIf { it.hasValue }
 }

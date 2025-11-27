@@ -37,6 +37,11 @@ enum VodPlayerCommandError: LocalizedError {
 }
 
 fileprivate struct ShortVideoMetadata {
+  var name: String?
+  var icon: String?
+  var tags: [String]?
+  var details: String?
+  var isShowPaly: Bool?
   var authorName: String?
   var authorAvatar: String?
   var title: String?
@@ -52,14 +57,27 @@ fileprivate struct ShortVideoMetadata {
 
   init?(dictionary: [String: Any]) {
     var metadata = ShortVideoMetadata()
+    metadata.name = ShortVideoMetadata.pickString(dictionary["name"])
+    metadata.icon = ShortVideoMetadata.pickString(dictionary["icon"])
+    metadata.tags = ShortVideoMetadata.parseTags(dictionary["type"])
+    metadata.details = ShortVideoMetadata.pickString(dictionary["details"])
+    if let value = dictionary["isShowPaly"] as? Bool {
+      metadata.isShowPaly = value
+    }
     if let value = dictionary["authorName"] as? String, !value.isEmpty {
       metadata.authorName = value
+    } else if let fallback = metadata.name {
+      metadata.authorName = fallback
     }
     if let value = dictionary["authorAvatar"] as? String, !value.isEmpty {
       metadata.authorAvatar = value
+    } else if let fallback = metadata.icon {
+      metadata.authorAvatar = fallback
     }
     if let value = dictionary["title"] as? String, !value.isEmpty {
       metadata.title = value
+    } else if let fallback = metadata.name {
+      metadata.title = fallback
     }
     if let value = Self.parseNumeric(dictionary["likeCount"]) {
       metadata.likeCount = value
@@ -79,8 +97,11 @@ fileprivate struct ShortVideoMetadata {
     if let value = dictionary["isFollowed"] as? Bool {
       metadata.isFollowed = value
     }
-    if let value = dictionary["watchMoreText"] as? String, !value.isEmpty {
+    if let value = dictionary["watchMoreText"] as? String,
+       !value.isEmpty {
       metadata.watchMoreText = value
+    } else if let fallback = metadata.details {
+      metadata.watchMoreText = fallback
     }
     if metadata.isEmpty {
       return nil
@@ -99,8 +120,43 @@ fileprivate struct ShortVideoMetadata {
     return nil
   }
 
+  private static func pickString(_ value: Any?) -> String? {
+    guard let raw = value as? String else {
+      return nil
+    }
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
+  }
+
+  private static func parseTags(_ value: Any?) -> [String]? {
+    if let array = value as? [Any] {
+      let tags = array.compactMap { entry -> String? in
+        guard let raw = entry as? String else {
+          return nil
+        }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+      }
+      return tags.isEmpty ? nil : tags
+    }
+    if let raw = value as? String {
+      let segments = raw
+        .split(separator: "#")
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+      return segments.isEmpty ? nil : segments
+    }
+    return nil
+  }
+
   var isEmpty: Bool {
-    return authorName == nil
+    let hasTags = !(tags?.isEmpty ?? true)
+    return name == nil
+      && icon == nil
+      && !hasTags
+      && details == nil
+      && isShowPaly == nil
+      && authorName == nil
       && authorAvatar == nil
       && title == nil
       && likeCount == nil
@@ -114,6 +170,27 @@ fileprivate struct ShortVideoMetadata {
 
   func dictionaryRepresentation() -> [String: Any] {
     var payload: [String: Any] = [:]
+    if let name {
+      payload["name"] = name
+    } else if let authorName {
+      payload["name"] = authorName
+    }
+    if let icon {
+      payload["icon"] = icon
+    } else if let authorAvatar {
+      payload["icon"] = authorAvatar
+    }
+    if let tags, !tags.isEmpty {
+      payload["type"] = tags
+    }
+    if let details {
+      payload["details"] = details
+    } else if let watchMoreText {
+      payload["details"] = watchMoreText
+    }
+    if let isShowPaly {
+      payload["isShowPaly"] = isShowPaly
+    }
     if let authorName {
       payload["authorName"] = authorName
     }
@@ -143,6 +220,8 @@ fileprivate struct ShortVideoMetadata {
     }
     if let watchMoreText {
       payload["watchMoreText"] = watchMoreText
+    } else if let details {
+      payload["watchMoreText"] = details
     }
     return payload
   }

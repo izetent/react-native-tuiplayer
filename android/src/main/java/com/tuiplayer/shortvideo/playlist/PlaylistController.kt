@@ -279,6 +279,11 @@ internal class PlaylistController(
       val fallback = sources[currentIndex]
       return currentIndex to fallback
     }
+    val lastKnown = host.lastKnownIndex
+    if (lastKnown in sources.indices) {
+      val fallback = sources[lastKnown]
+      return lastKnown to fallback
+    }
     return null
   }
 
@@ -480,16 +485,21 @@ private fun mergeMetadata(
   current: TuiplayerShortVideoSource.Metadata?,
   update: TuiplayerShortVideoSource.Metadata
 ): TuiplayerShortVideoSource.Metadata {
-  return TuiplayerShortVideoSource.Metadata(
-    authorName = update.authorName ?: current?.authorName,
-    authorAvatar = update.authorAvatar ?: current?.authorAvatar,
-    title = update.title ?: current?.title,
+  android.util.Log.d("TuiplayerMeta", "mergeMetadata - current.type: ${current?.type}, update.type: ${update.type}")
+  val resolvedType = if (update.type.isNullOrEmpty()) current?.type else update.type
+  
+  val result = TuiplayerShortVideoSource.Metadata(
+    name = update.name ?: current?.name,
+    icon = update.icon ?: current?.icon,
+    type = resolvedType,
+    details = update.details ?: current?.details,
     likeCount = update.likeCount ?: current?.likeCount,
-    commentCount = update.commentCount ?: current?.commentCount,
     favoriteCount = update.favoriteCount ?: current?.favoriteCount,
+    isShowPaly = update.isShowPaly ?: current?.isShowPaly,
     isLiked = update.isLiked ?: current?.isLiked,
-    isBookmarked = update.isBookmarked ?: current?.isBookmarked,
-    isFollowed = update.isFollowed ?: current?.isFollowed,
-    watchMoreText = update.watchMoreText ?: current?.watchMoreText
+    isBookmarked = update.isBookmarked ?: current?.isBookmarked
   )
+  
+  android.util.Log.d("TuiplayerMeta", "mergeMetadata - result.type: ${result.type}")
+  return result
 }
