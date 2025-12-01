@@ -5,6 +5,7 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Rect
 import android.view.LayoutInflater
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.TouchDelegate
 import android.view.View
@@ -71,8 +72,10 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
   private var lastFavoriteCount: Long = 0L
   private var lastLikeCount: Long = 0L
   private var overlayVisible = true
-  private val progressActivationSlopPx = PixelHelper.pxF(10f)
+  private val progressActivationSlopPx = PixelHelper.pxF(10f) // unused; keep or remove later if not needed
   private var progressTouchActive = false
+  private val longPressTimeoutMs = 800L
+  private var longPressTriggered = false
 
   // Colors
   private val defaultIconColor = Color.parseColor("#FFFFFF")
@@ -127,14 +130,7 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     updatePauseIndicator(false)
     applyOverlayVisibility()
 
-    // Tap handling for pause/resume on background area
-    // The panelContainer consumes clicks, so clicks here are only from the empty area above
-    root.setOnClickListener { handleRootClick() }
-    // 长按不触发点击，避免长按松手也触发暂停
-    root.setOnLongClickListener { true }
-    
-    // Consume clicks on the panel container to prevent them from bubbling up to root
-    panelContainer?.setOnClickListener { /* Consume click */ }
+    setupRootGestures(root)
 
     return root
   }
@@ -401,10 +397,25 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     private val delegateView: View
   ) : TouchDelegate(Rect(bounds), delegateView) {
     private val delegateBounds = Rect(bounds)
+    private var targeted = false
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-      if (!delegateBounds.contains(event.x.toInt(), event.y.toInt()) && event.action != MotionEvent.ACTION_DOWN) {
-        return false
+      when (event.actionMasked) {
+        MotionEvent.ACTION_DOWN -> {
+          targeted = delegateBounds.contains(event.x.toInt(), event.y.toInt())
+          if (!targeted) {
+            return false
+          }
+        }
+        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+          if (!targeted) {
+            return false
+          }
+          // Will reset after dispatch below.
+        }
+        else -> if (!targeted) {
+          return false
+        }
       }
       val clampedX = (event.x - delegateBounds.left).coerceIn(0f, delegateView.width.toFloat())
       val clampedY = (event.y - delegateBounds.top).coerceIn(0f, delegateView.height.toFloat())
@@ -412,6 +423,9 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
       transformed.setLocation(clampedX, clampedY)
       val handled = delegateView.dispatchTouchEvent(transformed)
       transformed.recycle()
+      if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+        targeted = false
+      }
       return handled
     }
   }
@@ -425,6 +439,58 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
       }
       false
     }
+  }
+
+  private fun setupRootGestures(root: View) {
+    val touchSlop = ViewConfiguration.get(root.context).scaledTouchSlop
+    val longPressRunnable = Runnable {
+      longPressTriggered = true
+      root.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+      toggleOverlayVisibility()
+    }
+    var startX = 0f
+    var startY = 0f
+    root.setOnTouchListener { _, event ->
+      when (event.actionMasked) {
+        MotionEvent.ACTION_DOWN -> {
+          longPressTriggered = false
+          startX = event.x
+          startY = event.y
+          root.removeCallbacks(longPressRunnable)
+          root.postDelayed(longPressRunnable, longPressTimeoutMs)
+        }
+        MotionEvent.ACTION_MOVE -> {
+          if (!longPressTriggered) {
+            val dx = abs(event.x - startX)
+            val dy = abs(event.y - startY)
+            if (dx > touchSlop || dy > touchSlop) {
+              root.removeCallbacks(longPressRunnable)
+            }
+          }
+        }
+        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+          root.removeCallbacks(longPressRunnable)
+          if (longPressTriggered) {
+            longPressTriggered = false
+            return@setOnTouchListener true
+          }
+        }
+      }
+      false
+    }
+    root.setOnClickListener {
+      if (longPressTriggered) {
+        longPressTriggered = false
+        return@setOnClickListener
+      }
+      handleRootClick()
+    }
+    // Consume clicks on the panel container to prevent them from bubbling up to root
+    panelContainer?.setOnClickListener { /* Consume click */ }
+  }
+
+  private fun toggleOverlayVisibility() {
+    host?.requestSetOverlayVisible(!overlayVisible)
   }
 
   private fun refreshMetadata() {

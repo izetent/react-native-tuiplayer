@@ -8,6 +8,7 @@ internal interface TuiplayerLayerHost {
   fun resolveIndex(model: TUIVideoSource): Int?
   fun emitOverlayAction(model: TUIVideoSource, action: String)
   fun requestTogglePlay(): Boolean?
+  fun requestSetOverlayVisible(visible: Boolean)
 }
 
 internal interface TuiplayerHostAwareLayer {

@@ -460,6 +460,10 @@ internal class TuiplayerShortVideoView(
     updateBottomLoadingVisibility()
   }
 
+  override fun requestSetOverlayVisible(visible: Boolean) {
+    setOverlayVisible(visible)
+  }
+
   private fun createLoadingIndicator(): ProgressBar {
     val color = Color.parseColor("#FF782E")
     return ProgressBar(context).apply {
