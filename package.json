@@ -1,6 +1,6 @@
 {
   "name": "react-native-tuiplayer",
-  "version": "0.1.6",
+  "version": "0.2.1",
   "description": "React Native bridge for TUIPlayer Kit short video components.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",

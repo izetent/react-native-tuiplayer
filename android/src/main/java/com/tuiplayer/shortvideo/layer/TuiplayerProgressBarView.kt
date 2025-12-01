@@ -46,6 +46,8 @@ internal class TuiplayerProgressBarView @JvmOverloads constructor(
   private val fillRect = RectF()
 
   private var trackHeightPx = collapsedHeightPx
+  // Allow taps within (and slightly beyond) the view bounds to activate seeking.
+  private val activationSlopPx = PixelHelper.pxF(32f)
   private var progressRatio = 0f
   private var bufferRatio = 0f
   private var dragRatio: Float? = null
@@ -159,7 +161,7 @@ internal class TuiplayerProgressBarView @JvmOverloads constructor(
     val ratio = computeRatio(event.x)
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
-        if (!isWithinTouchSlop(event.y)) {
+        if (!isWithinActiveBand(event.y)) {
           return false
         }
         parent.requestDisallowInterceptTouchEvent(true)
@@ -213,8 +215,12 @@ internal class TuiplayerProgressBarView @JvmOverloads constructor(
     }
   }
 
-  private fun isWithinTouchSlop(y: Float): Boolean {
-    return y >= -touchExtensionPx && y <= height + touchExtensionPx
+  private fun isWithinActiveBand(y: Float): Boolean {
+    // Accept the full view height plus some slop so taps/drags aren't rejected,
+    // and let ratio calculation clamp horizontally.
+    val upper = -activationSlopPx
+    val lower = height + activationSlopPx
+    return y in upper..lower
   }
 
   private fun setLoadingVisibleInternal(visible: Boolean, force: Boolean = false) {

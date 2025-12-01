@@ -71,6 +71,8 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
   private var lastFavoriteCount: Long = 0L
   private var lastLikeCount: Long = 0L
   private var overlayVisible = true
+  private val progressActivationSlopPx = PixelHelper.pxF(10f)
+  private var progressTouchActive = false
 
   // Colors
   private val defaultIconColor = Color.parseColor("#FFFFFF")
@@ -323,6 +325,22 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
   private fun setupProgressBar() {
     val bar = progressBar ?: return
     bar.isEnabled = false
+    bar.setOnTouchListener { v, event ->
+      // Always consume touches here to prevent bubbling to root (pause toggle).
+      when (event.actionMasked) {
+        MotionEvent.ACTION_DOWN -> {
+          progressTouchActive = true
+          disallowParentIntercept(v, true)
+        }
+        MotionEvent.ACTION_MOVE -> disallowParentIntercept(v, true)
+        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+          progressTouchActive = false
+          disallowParentIntercept(v, false)
+        }
+      }
+      v.onTouchEvent(event)
+      true
+    }
     bar.setOnSeekListener(object : TuiplayerProgressBarView.OnSeekListener {
       override fun onSeekStart() {
         isTrackingProgress = true
@@ -347,7 +365,7 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
         progressBar?.setProgressRatio(ratio)
       }
     })
-    expandTouchArea(bar, extraTop = PixelHelper.px(8f), extraBottom = PixelHelper.px(12f))
+    expandTouchArea(bar, extraTop = PixelHelper.px(15f), extraBottom = PixelHelper.px(15f))
   }
 
   private fun disallowParentIntercept(view: View, disallow: Boolean) {
@@ -374,7 +392,27 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
       rect.top -= extraTop
       rect.right += extraRight
       rect.bottom += extraBottom
-      parentView.touchDelegate = TouchDelegate(rect, target)
+      parentView.touchDelegate = ClampingTouchDelegate(rect, target)
+    }
+  }
+
+  private class ClampingTouchDelegate(
+    bounds: Rect,
+    private val delegateView: View
+  ) : TouchDelegate(Rect(bounds), delegateView) {
+    private val delegateBounds = Rect(bounds)
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+      if (!delegateBounds.contains(event.x.toInt(), event.y.toInt()) && event.action != MotionEvent.ACTION_DOWN) {
+        return false
+      }
+      val clampedX = (event.x - delegateBounds.left).coerceIn(0f, delegateView.width.toFloat())
+      val clampedY = (event.y - delegateBounds.top).coerceIn(0f, delegateView.height.toFloat())
+      val transformed = MotionEvent.obtain(event)
+      transformed.setLocation(clampedX, clampedY)
+      val handled = delegateView.dispatchTouchEvent(transformed)
+      transformed.recycle()
+      return handled
     }
   }
 
@@ -504,6 +542,10 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
 
 
   private fun handleRootClick() {
+    if (progressTouchActive) {
+      // Skip toggling pause if the tap originated from the progress bar area.
+      return
+    }
     val toggledPaused = host?.requestTogglePlay()
     if (toggledPaused != null) {
       pauseIndicatorVisible = toggledPaused
@@ -573,11 +615,13 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
 
   private fun applyOverlayVisibility() {
     val root = rootView ?: return
+    // Root remains visible so tap-to-pause and progress bar stay usable when overlay is hidden.
+    root.visibility = View.VISIBLE
+    panelContainer?.visibility = if (overlayVisible) View.VISIBLE else View.GONE
     if (overlayVisible) {
-      root.visibility = View.VISIBLE
       updatePauseIndicator(pauseIndicatorVisible)
     } else {
-      root.visibility = View.GONE
+      // Hide pause indicator when clearing overlay content.
       pauseIndicatorView?.animate()?.cancel()
       pauseIndicatorView?.alpha = 0f
     }
