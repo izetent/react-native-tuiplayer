@@ -52,6 +52,7 @@ import com.tencent.qcloud.tuiplayer.core.api.ui.view.TUIVodLayer
 import com.tencent.qcloud.tuiplayer.core.api.ui.view.custom.TUICustomLayerManager
 import com.tencent.qcloud.tuiplayer.core.api.ui.view.live.TUILiveLayerManager
 import com.tencent.qcloud.tuiplayer.core.api.ui.view.vod.TUIVodLayerManager
+import androidx.viewpager2.widget.ViewPager2
 import com.tencent.qcloud.tuiplayer.shortvideo.api.data.TUIShortVideoDataManager
 import com.tencent.qcloud.tuiplayer.shortvideo.ui.view.TUIShortVideoListener
 import com.tencent.qcloud.tuiplayer.shortvideo.ui.view.TUIShortVideoView
@@ -1166,14 +1167,23 @@ internal class TuiplayerShortVideoView(
 
   private fun applyPageScroller() {
     val ms = pageScrollMsPerInch
-    if (ms == null || ms <= 0f) {
+    if (ms == null) {
       return
     }
-    val scroller = object : androidx.recyclerview.widget.LinearSmoothScroller(context) {
-      override fun calculateSpeedPerPixel(displayMetrics: DisplayMetrics): Float {
-        return ms / displayMetrics.densityDpi
+    val scroller =
+      if (ms <= 0f) {
+        object : androidx.recyclerview.widget.LinearSmoothScroller(context) {
+          override fun calculateSpeedPerPixel(displayMetrics: DisplayMetrics): Float = 0f
+          override fun calculateTimeForScrolling(dx: Int): Int = 0
+          override fun calculateTimeForDeceleration(dx: Int): Int = 0
+        }
+      } else {
+        object : androidx.recyclerview.widget.LinearSmoothScroller(context) {
+          override fun calculateSpeedPerPixel(displayMetrics: DisplayMetrics): Float {
+            return ms / displayMetrics.densityDpi
+          }
+        }
       }
-    }
     shortVideoView.setPageScroller(scroller)
   }
 
@@ -1242,6 +1252,33 @@ internal class TuiplayerShortVideoView(
     currentVodPlayer?.setRenderMode(mapToNativeRenderMode(requestedRenderMode))
   }
 
+  private fun jumpToIndexWithBinding(index: Int, smooth: Boolean) {
+    try {
+      val viewPagerField = TUIShortVideoView::class.java.getDeclaredField("mViewPager").apply {
+        isAccessible = true
+      }
+      val helperField = TUIShortVideoView::class.java.getDeclaredField("mViewPagerHelper").apply {
+        isAccessible = true
+      }
+      val viewPager = viewPagerField.get(shortVideoView) as? ViewPager2
+      val helper = helperField.get(shortVideoView)
+      val bindMethod = helper?.javaClass
+        ?.getDeclaredMethod("b", Int::class.javaPrimitiveType)
+        ?.also { it.isAccessible = true }
+
+      // 首先无动画定位到目标
+      viewPager?.setCurrentItem(index, false)
+      // 若需要平滑（受 pageScrollMsPerInch 控制），调用 helper 的平滑绑定
+      if (smooth) {
+        bindMethod?.invoke(helper, index)
+      }
+      return
+    } catch (error: Throwable) {
+      Log.w(TAG, "jumpToIndexWithBinding fallback", error)
+    }
+    shortVideoView.startPlayIndex(index, smooth)
+  }
+
   private inner class PlaybackCoordinator : PlaylistPlaybackCoordinator {
     private var pendingInitialIndex: Int? = null
     private var pendingStartCommand: PendingStartCommand? = null
@@ -1299,7 +1336,8 @@ internal class TuiplayerShortVideoView(
       if (adapterTotal >= 0 && index >= adapterTotal) {
         return false
       }
-      shortVideoView.startPlayIndex(index, smooth)
+      // rely on pageScrollMsPerInch for animation tuning; default binding path to avoid crashes
+      jumpToIndexWithBinding(index, smooth)
       if (forcePlay || (autoPlay && !isManuallyPaused)) {
         isManuallyPaused = false
         shortVideoView.resume()
