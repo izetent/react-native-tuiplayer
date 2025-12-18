@@ -39,6 +39,7 @@ import type {
   PreferredResolution,
   TuiplayerLayerConfig,
   TuiplayerSubtitleStyle,
+  ShortVideoSourceSnapshot,
 } from './types';
 
 export const initialize = (config: TuiplayerLicenseConfig) => {
@@ -339,6 +340,20 @@ export type TuiplayerShortVideoViewProps = {
       offset: number;
     };
   }) => void;
+  onPlaybackStart?: (event: {
+    nativeEvent: {
+      index: number;
+      total: number;
+      source?: ShortVideoSourceSnapshot;
+    };
+  }) => void;
+  onPlaybackEnd?: (event: {
+    nativeEvent: {
+      index: number;
+      total: number;
+      source?: ShortVideoSourceSnapshot;
+    };
+  }) => void;
   onEndReached?: (event: {
     nativeEvent: {
       index: number;
@@ -378,6 +393,8 @@ export const TuiplayerShortVideoView = forwardRef<
       subtitleStyle,
       onPageChanged,
       onTopReached,
+      onPlaybackStart,
+      onPlaybackEnd,
       onEndReached,
       onVodEvent,
       onReady: onReadyProp,
@@ -966,6 +983,8 @@ export const TuiplayerShortVideoView = forwardRef<
         subtitleStyle={normalizedSubtitleStyle}
         onPageChanged={onPageChanged}
         onTopReached={onTopReached}
+        onPlaybackStart={onPlaybackStart}
+        onPlaybackEnd={onPlaybackEnd}
         onEndReached={onEndReached}
         onVodEvent={onVodEvent}
         onReady={handleNativeReady}
@@ -1019,6 +1038,10 @@ function normalizeOverlayMeta(
   const normalizedDetails = pickString(meta.details);
   const normalizedWatchMore =
     pickString(meta.watchMoreText) ?? normalizedDetails;
+  const normalizedMoreText = pickString(meta.moreText) ?? normalizedWatchMore;
+  const normalizedPlayText = pickString(meta.playText);
+  const normalizedShowCover =
+    typeof meta.showCover === 'boolean' ? meta.showCover : undefined;
   const normalizedTitle = pickString(meta.title) ?? normalizedName;
   const normalizedAuthorName = pickString(meta.authorName) ?? normalizedName;
   const normalizedAuthorAvatar =
@@ -1052,6 +1075,9 @@ function normalizeOverlayMeta(
     isBookmarked: meta.isBookmarked,
     isFollowed: meta.isFollowed,
     watchMoreText: normalizedWatchMore,
+    moreText: normalizedMoreText,
+    playText: normalizedPlayText,
+    showCover: normalizedShowCover,
     isShowPaly: meta.isShowPaly,
   };
 }

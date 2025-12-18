@@ -704,10 +704,15 @@ class TuiplayerShortVideoView: UIView {
   private var currentPayloads: [ShortVideoPayload] = []
   private var vodPlayerByModel: [ObjectIdentifier: TUITXVodPlayer] = [:]
   private var currentVodPlayerIdentifier: ObjectIdentifier?
+  private var durationByModel: [ObjectIdentifier: Double] = [:] // seconds
+  private var currentTimeByModel: [ObjectIdentifier: Double] = [:] // seconds
   private var lastVodStatus: TUITXVodPlayerStatus = .TUITXVodPlayerStatusUnload
   @objc var onVodEvent: RCTDirectEventBlock?
+  @objc var onPlaybackStart: RCTDirectEventBlock?
+  @objc var onPlaybackEnd: RCTDirectEventBlock?
   private var lastEndReachedTotal: Int = -1
   private var lastPageIndex: Int = -1
+  private var lastPlaybackStartedIndex: Int?
   private var pendingInitialIndex: Int?
   private var isManuallyPaused: Bool = false
   private var hasDispatchedReady: Bool = false
@@ -832,6 +837,7 @@ class TuiplayerShortVideoView: UIView {
         shortVideoView.setShortVideoModels([])
         lastEndReachedTotal = -1
         lastPageIndex = -1
+        lastPlaybackStartedIndex = nil
         pendingInitialIndex = nil
         updateOverlay(for: nil)
         return
@@ -943,6 +949,7 @@ class TuiplayerShortVideoView: UIView {
     currentPayloads = entries.map { $0.payload }
     lastEndReachedTotal = -1
     lastPageIndex = -1
+    lastPlaybackStartedIndex = nil
     if isAutoPlayEnabled && !isManuallyPaused {
       resume()
     }
@@ -1018,6 +1025,7 @@ class TuiplayerShortVideoView: UIView {
     }
     applyInitialIndexIfPossible()
     if currentPayloads.isEmpty {
+      lastPlaybackStartedIndex = nil
       updateOverlay(for: nil)
     } else if lastPageIndex < 0, !currentModels.isEmpty {
       let resolvedIndex = max(0, min(shortVideoView.currentVideoIndex, currentModels.count - 1))
@@ -1068,6 +1076,61 @@ class TuiplayerShortVideoView: UIView {
       body["payload"] = payload
     }
     callback(body)
+  }
+
+  private func makePlaybackPayload(indexOverride: Int? = nil) -> [String: Any]? {
+    guard !currentPayloads.isEmpty else { return nil }
+    let resolvedIndex = indexOverride ?? resolveCurrentIndex()
+    guard
+      let index = resolvedIndex,
+      index >= 0,
+      index < currentPayloads.count
+    else {
+      return nil
+    }
+    var payload: [String: Any] = [
+      "index": index,
+      "total": currentPayloads.count,
+    ]
+    payload["source"] = TuiplayerShortVideoView.serialize(payload: currentPayloads[index])
+    return payload
+  }
+
+  private func emitPlaybackStartIfNeeded() {
+    guard let callback = onPlaybackStart,
+          let payload = makePlaybackPayload() else { return }
+    if let last = lastPlaybackStartedIndex,
+       let currentIndex = payload["index"] as? Int,
+       last == currentIndex {
+      return
+    }
+    if let currentIndex = payload["index"] as? Int {
+      lastPlaybackStartedIndex = currentIndex
+    } else {
+      lastPlaybackStartedIndex = nil
+    }
+    callback(payload)
+  }
+
+  private func emitPlaybackEndIfPossible(indexOverride: Int? = nil) {
+    guard let callback = onPlaybackEnd,
+          let payload = makePlaybackPayload(indexOverride: indexOverride) else { return }
+    callback(payload)
+    if let currentIndex = payload["index"] as? Int,
+       currentIndex == lastPlaybackStartedIndex {
+      lastPlaybackStartedIndex = nil
+    }
+  }
+
+  private func isEventFromCurrentPlayer(_ player: TUITXVodPlayer) -> Bool {
+    if let currentId = currentVodPlayerIdentifier,
+       let currentPlayer = vodPlayerByModel[currentId] {
+      return currentPlayer === player
+    }
+    guard let index = resolveCurrentIndex(),
+          currentModels.indices.contains(index) else { return false }
+    let modelId = ObjectIdentifier(currentModels[index])
+    return vodPlayerByModel[modelId] === player
   }
 
   private func normalizeParam(_ param: [AnyHashable: Any]) -> [String: Any] {
@@ -1331,6 +1394,7 @@ class TuiplayerShortVideoView: UIView {
   }
 
   private func notifyPageChanged(index: Int) {
+    let previousStartedIndex = lastPlaybackStartedIndex
     let total = currentPayloads.count
     guard total > 0 else { return }
     guard index >= 0, index < total else { return }
@@ -1342,8 +1406,13 @@ class TuiplayerShortVideoView: UIView {
     } else {
       currentVodPlayerIdentifier = nil
     }
+    lastPlaybackStartedIndex = nil
     lastPageIndex = index
     updateOverlay(for: index)
+    if let previousStartedIndex,
+       previousStartedIndex != index {
+      emitPlaybackEndIfPossible(indexOverride: previousStartedIndex)
+    }
     onPageChanged?([
       "index": index,
       "total": total,
@@ -1698,9 +1767,21 @@ class TuiplayerShortVideoView: UIView {
       player.setRate(rate.floatValue)
       return nil
     case "getDuration":
-      return NSNumber(value: player.duration)
+      if player.duration > 0 {
+        return NSNumber(value: player.duration)
+      }
+      if let cached = durationByModel[ObjectIdentifier(player)], cached > 0 {
+        return NSNumber(value: cached)
+      }
+      return NSNumber(value: 0)
     case "getCurrentPlaybackTime":
-      return NSNumber(value: player.currentPlaybackTime)
+      if player.currentPlaybackTime >= 0 {
+        return NSNumber(value: player.currentPlaybackTime)
+      }
+      if let cached = currentTimeByModel[ObjectIdentifier(player)] {
+        return NSNumber(value: cached)
+      }
+      return NSNumber(value: 0)
     case "getPlayableDuration":
       return NSNumber(value: player.playableDuration)
     case "setMute":
@@ -1954,6 +2035,7 @@ extension TuiplayerShortVideoView: TUITXVodPlayerDelegate {
       emitVodEvent("onPlayLoadingEnd")
     }
     lastVodStatus = status
+    let isCurrentPlayer = isEventFromCurrentPlayer(player)
     switch status {
     case .TUITXVodPlayerStatusPrepared:
       setOverlayPaused(false)
@@ -1964,12 +2046,18 @@ extension TuiplayerShortVideoView: TUITXVodPlayerDelegate {
     case .TUITXVodPlayerStatusPlaying:
       setOverlayPaused(false)
       emitVodEvent("onPlayBegin")
+      if isCurrentPlayer {
+        emitPlaybackStartIfNeeded()
+      }
     case .TUITXVodPlayerStatusPaused:
       setOverlayPaused(true)
       emitVodEvent("onPlayPause")
     case .TUITXVodPlayerStatusEnded:
       setOverlayPaused(true)
       emitVodEvent("onPlayEnd")
+      if isCurrentPlayer {
+        emitPlaybackEndIfPossible()
+      }
     case .TUITXVodPlayerStatusError:
       setOverlayPaused(true)
       emitVodEvent("onError", ["code": -1, "message": "Player status error"])
@@ -1981,6 +2069,11 @@ extension TuiplayerShortVideoView: TUITXVodPlayerDelegate {
   }
 
   func player(_ player: TUITXVodPlayer, currentTime: Float, totalTime: Float, progress: Float) {
+    let identifier = ObjectIdentifier(player)
+    if totalTime > 0 {
+      durationByModel[identifier] = Double(totalTime)
+    }
+    currentTimeByModel[identifier] = Double(currentTime)
     emitVodEvent(
       "onPlayProgress",
       [

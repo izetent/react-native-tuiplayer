@@ -9,6 +9,7 @@ import type {
   Int32,
   WithDefault,
 } from 'react-native/Libraries/Types/CodegenTypes';
+import type { ShortVideoSourceSnapshot } from './types';
 
 export type NativeShortVideoMeta = Readonly<{
   name?: string;
@@ -24,6 +25,9 @@ export type NativeShortVideoMeta = Readonly<{
   isLiked?: boolean;
   isBookmarked?: boolean;
   isFollowed?: boolean;
+  showCover?: boolean;
+  playText?: string;
+  moreText?: string;
   watchMoreText?: string;
   isShowPaly?: boolean;
 }>;
@@ -131,6 +135,10 @@ export interface TuiplayerShortVideoViewPageChangedEvent {
   total: Int32;
 }
 
+export interface TuiplayerShortVideoViewPlaybackEvent {
+  source?: ShortVideoSourceSnapshot;
+}
+
 export interface TuiplayerVodEvent {
   type: string;
   payload?: Readonly<Record<string, unknown> | undefined>;
@@ -156,6 +164,12 @@ export interface NativeProps extends ViewProps {
   ) => void;
   onPageChanged?: (
     event: NativeEvent<TuiplayerShortVideoViewPageChangedEvent>
+  ) => void;
+  onPlaybackStart?: (
+    event: NativeEvent<TuiplayerShortVideoViewPlaybackEvent>
+  ) => void;
+  onPlaybackEnd?: (
+    event: NativeEvent<TuiplayerShortVideoViewPlaybackEvent>
   ) => void;
   onVodEvent?: (event: NativeEvent<TuiplayerVodEvent>) => void;
   onReady?: (event: NativeVoidEvent) => void;

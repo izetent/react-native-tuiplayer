@@ -36,6 +36,9 @@ export type ShortVideoSourceMetaPayload = {
   isLiked?: boolean;
   isBookmarked?: boolean;
   isFollowed?: boolean;
+  showCover?: boolean;
+  playText?: string;
+  moreText?: string;
   watchMoreText?: string;
   isShowPaly?: boolean;
 };

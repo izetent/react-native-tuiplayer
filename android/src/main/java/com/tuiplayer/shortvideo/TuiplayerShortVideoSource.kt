@@ -34,6 +34,10 @@ internal data class TuiplayerShortVideoSource(
     val icon: String?,       // Was episodeCover/authorAvatar
     val type: List<String>?, // Was tags
     val details: String?,    // Was description/authorName?
+    val showCover: Boolean?,
+    val playText: String?,
+    val moreText: String?,
+    val watchMoreText: String?,
     val likeCount: Long?,
     val favoriteCount: Long?,
     val isShowPaly: Boolean?, // Was isPlayShow
@@ -47,6 +51,10 @@ internal data class TuiplayerShortVideoSource(
         icon,
         type,
         details,
+        showCover,
+        playText,
+        moreText,
+        watchMoreText,
         likeCount,
         favoriteCount,
         isShowPaly,
@@ -71,7 +79,7 @@ internal data class TuiplayerShortVideoSource(
         return null
       }
       val resolvedName = if (!name.isNullOrBlank()) name else url
-      return TUISubtitleSource(resolvedName, url, normalizedMimeType())
+      return TUISubtitleSource(url, resolvedName, normalizedMimeType())
     }
 
     fun normalizedMimeType(): String {

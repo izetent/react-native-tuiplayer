@@ -138,6 +138,7 @@ internal class TuiplayerShortVideoView(
     private set
   override var lastKnownIndex: Int = -1
   override var lastEndReachedTotal: Int = -1
+  private var lastPlaybackStartedIndex: Int? = null
   private var customVodStrategy: TUIPlayerVodStrategy? = null
   private var customLiveStrategy: TUIPlayerLiveStrategy? = null
   private var userInputEnabled: Boolean = true
@@ -153,8 +154,11 @@ internal class TuiplayerShortVideoView(
   private val playersRequiringSubtitles =
     Collections.newSetFromMap(WeakHashMap<ITUIVodPlayer, Boolean>())
   private val subtitleSelectionAttempts: MutableMap<ITUIVodPlayer, Int> = WeakHashMap()
+  private val durationMsByIndex: MutableMap<Int, Long> = HashMap()
+  private val currentMsByIndex: MutableMap<Int, Long> = HashMap()
   private var requestedRenderMode: Int = RENDER_MODE_FILL
   private var subtitleStyle: SubtitleStyleConfig? = null
+  private val cachedSubtitleTracks: WeakHashMap<ITUIVodPlayer, List<TXTrackInfo>> = WeakHashMap()
   private var topLoadingVisible = false
   private var bottomLoadingVisible = false
   private var topLoadingPreview = false
@@ -176,6 +180,7 @@ internal class TuiplayerShortVideoView(
 
     override fun onPlayBegin() {
       emitVodEvent("onPlayBegin", null)
+      dispatchPlaybackStartIfNeeded(currentVodPlayer)
     }
 
     override fun onPlayPause() {
@@ -199,6 +204,14 @@ internal class TuiplayerShortVideoView(
         putDouble("current", current.toDouble())
         putDouble("duration", duration.toDouble())
         putDouble("playable", playable.toDouble())
+      }
+      resolvePlaybackContextForPlayer(currentVodPlayer)?.index?.let { idx ->
+        if (duration > 0) {
+          durationMsByIndex[idx] = duration
+        }
+        if (current >= 0) {
+          currentMsByIndex[idx] = current
+        }
       }
       emitVodEvent("onPlayProgress", map)
     }
@@ -234,7 +247,14 @@ internal class TuiplayerShortVideoView(
     }
 
     override fun onRcvSubTitleTrackInformation(list: List<TXTrackInfo>) {
+      Log.d(TAG, "onRcvSubTitleTrackInformation size=${list.size}")
       emitVodEvent("onRcvSubtitleTrackInformation", list.toWritableArray())
+      // 优先使用回调里的轨道信息尝试选轨（通常对应当前播放播放器）åå
+      currentVodPlayer?.let { player ->
+        if (list.isNotEmpty()) {
+          selectSubtitleTrackFromList(player, list, "observerCallback")
+        }
+      }
       requestSubtitleSelectionForAllPlayers()
     }
 
@@ -260,10 +280,12 @@ internal class TuiplayerShortVideoView(
 
     override fun onFirstFrameRendered() {
       emitVodEvent("onFirstFrameRendered", null)
+      dispatchPlaybackStartIfNeeded(currentVodPlayer)
     }
 
     override fun onPlayEnd() {
       emitVodEvent("onPlayEnd", null)
+      dispatchPlaybackEnd(currentVodPlayer)
     }
 
     override fun onRetryConnect(times: Int, bundle: Bundle?) {
@@ -297,6 +319,12 @@ internal class TuiplayerShortVideoView(
       val matchSource = match?.second
       if (matchIndex != null) {
         registerPlayerForIndex(player, matchIndex, matchSource)
+        if (currentVisibleIndex == null) {
+          currentVisibleIndex = matchIndex
+        }
+        if (lastKnownIndex < 0) {
+          lastKnownIndex = matchIndex
+        }
       }
       attachSubtitles(player, matchSource)
       applySubtitleStyleToPlayer(player)
@@ -311,6 +339,10 @@ internal class TuiplayerShortVideoView(
       if (matchSource?.subtitles?.isNotEmpty() == true) {
         maybeSelectSubtitleTrack(player)
       }
+      mainHandler.postDelayed(
+        { emitSubtitleTrackInfoIfAvailable(player, "onVodPlayerReady") },
+        100L
+      )
     }
 
     override fun onCreateCustomLayer(
@@ -614,9 +646,12 @@ internal class TuiplayerShortVideoView(
     playback.reset()
     playersByIndex.clear()
     playerIndexLookup.clear()
+    durationMsByIndex.clear()
+    currentMsByIndex.clear()
     subtitleAttachmentSources.clear()
     playersRequiringSubtitles.clear()
     subtitleSelectionAttempts.clear()
+    lastPlaybackStartedIndex = null
     currentVisibleIndex = null
     detachCurrentVodPlayer()
   }
@@ -685,11 +720,14 @@ internal class TuiplayerShortVideoView(
     playlist.reset()
     playersByIndex.clear()
     playerIndexLookup.clear()
+    durationMsByIndex.clear()
+    currentMsByIndex.clear()
     subtitleAttachmentSources.clear()
     currentVisibleIndex = null
     requestedRenderMode = RENDER_MODE_FILL
     lastKnownIndex = -1
     lastEndReachedTotal = -1
+    lastPlaybackStartedIndex = null
     overlayVisible = true
     topLoadingVisible = false
     bottomLoadingVisible = false
@@ -741,13 +779,18 @@ internal class TuiplayerShortVideoView(
     if (total <= 0) {
       return
     }
+    val previousStartedIndex = lastPlaybackStartedIndex
     currentVisibleIndex = index
     if (index != lastKnownIndex) {
       if (isManuallyPaused) {
         isManuallyPaused = false
       }
+      lastPlaybackStartedIndex = null
       lastKnownIndex = index
       dispatchPageChanged(index, total)
+    }
+    if (previousStartedIndex != null && previousStartedIndex != index) {
+      dispatchPlaybackEnd(indexOverride = previousStartedIndex)
     }
     ensureActivePlayerForCurrentIndex()
     val remaining = total - index - 1
@@ -797,10 +840,122 @@ internal class TuiplayerShortVideoView(
     }
   }
 
+  private data class PlaybackContext(
+    val index: Int,
+    val total: Int,
+    val source: WritableMap?
+  )
+
+  private fun resolvePlaybackContext(): PlaybackContext? =
+    resolvePlaybackContextForPlayer(currentVodPlayer)
+
+  private fun buildPlaybackContextForIndex(index: Int?): PlaybackContext? {
+    if (index == null || index < 0) {
+      return null
+    }
+    val total = playlist.dataCount()
+    if (total <= 0) {
+      return null
+    }
+    val normalizedIndex = index.coerceIn(0, total - 1)
+    return PlaybackContext(
+      index = normalizedIndex,
+      total = total,
+      source = playlist.snapshotAt(normalizedIndex)
+    )
+  }
+
+  private fun resolvePlaybackContextForPlayer(player: ITUIVodPlayer?): PlaybackContext? {
+    val index = player?.let { playerIndexLookup[it] }
+      ?: playlist.currentIndex()
+      ?: currentVisibleIndex
+      ?: lastKnownIndex
+      ?: currentVodPlayer?.let { playerIndexLookup[it] }
+    if (index == null || index < 0) {
+      return null
+    }
+    val total = playlist.dataCount()
+    if (total <= 0) {
+      return null
+    }
+    val normalizedIndex = index.coerceIn(0, total - 1)
+    return PlaybackContext(
+      index = normalizedIndex,
+      total = total,
+      source = playlist.snapshotAt(normalizedIndex)
+    )
+  }
+
+  private fun dispatchPlaybackEvent(
+    isStart: Boolean,
+    context: PlaybackContext,
+    retry: Int = 0
+  ) {
+    if (id == View.NO_ID) {
+      if (retry >= MAX_EVENT_RETRY) {
+        Log.w(TAG, "Abandon playback event, view id not ready (start=$isStart)")
+        return
+      }
+      shortVideoView.post { dispatchPlaybackEvent(isStart, context, retry + 1) }
+      return
+    }
+    val dispatcher = resolveEventDispatcher()
+    if (dispatcher != null) {
+      val surfaceId = resolveSurfaceId()
+      val event = if (isStart) {
+        TuiplayerShortVideoPlaybackStartEvent(
+          surfaceId,
+          id,
+          context.index,
+          context.total,
+          context.source
+        )
+      } else {
+        TuiplayerShortVideoPlaybackEndEvent(
+          surfaceId,
+          id,
+          context.index,
+          context.total,
+          context.source
+        )
+      }
+      dispatcher.dispatchEvent(event)
+    } else if (retry < MAX_EVENT_RETRY) {
+      shortVideoView.post { dispatchPlaybackEvent(isStart, context, retry + 1) }
+    } else {
+      Log.w(
+        TAG,
+        "Failed to dispatch playback event after retries (start=$isStart, surfaceId=${resolveSurfaceId()}, tag=$id)"
+      )
+    }
+  }
+
+  private fun dispatchPlaybackStartIfNeeded(player: ITUIVodPlayer? = currentVodPlayer) {
+    val context = resolvePlaybackContextForPlayer(player) ?: return
+    if (lastPlaybackStartedIndex == context.index) {
+      return
+    }
+    dispatchPlaybackEvent(true, context)
+    lastPlaybackStartedIndex = context.index
+  }
+
+  private fun dispatchPlaybackEnd(
+    player: ITUIVodPlayer? = currentVodPlayer,
+    indexOverride: Int? = null
+  ) {
+    val context = buildPlaybackContextForIndex(indexOverride)
+      ?: resolvePlaybackContextForPlayer(player)
+      ?: return
+    dispatchPlaybackEvent(false, context)
+    if (lastPlaybackStartedIndex == context.index) {
+      lastPlaybackStartedIndex = null
+    }
+  }
+
   companion object {
     private const val TAG = "TuiplayerShortVideoView"
-    private const val SUBTITLE_SELECTION_DELAY_MS = 300L
-    private const val MAX_SUBTITLE_SELECTION_ATTEMPTS = 5
+    private const val SUBTITLE_SELECTION_DELAY_MS = 500L
+    private const val MAX_SUBTITLE_SELECTION_ATTEMPTS = 10
     private const val END_REACHED_THRESHOLD = 2
     private const val TOP_REACHED_THRESHOLD = 2
     private const val MAX_EVENT_RETRY = 5
@@ -885,11 +1040,32 @@ internal class TuiplayerShortVideoView(
 
   fun handleVodPlayerCommand(command: String, options: ReadableMap?): Any? {
     val existingPlayer = resolvePlayerForCommand(options)
+    val resolvedIndex = existingPlayer?.let { playerIndexLookup[it] }
+      ?: options?.getIntOrNull("index")
+      ?: currentVisibleIndex
+      ?: lastKnownIndex
+      ?: currentVodPlayer?.let { playerIndexLookup[it] }
     when (command) {
       "isPlaying" -> return existingPlayer?.isPlaying() ?: false
       "isLoop" -> return existingPlayer?.isLoop() ?: false
-      "getDuration" -> return existingPlayer?.duration?.toDouble() ?: 0.0
-      "getCurrentPlaybackTime" -> return existingPlayer?.currentPlaybackTime?.toDouble() ?: 0.0
+      "getDuration" -> {
+        val cached = resolvedIndex?.let { durationMsByIndex[it]?.toDouble() }
+        val live = existingPlayer?.duration?.toDouble()
+        return when {
+          live != null && live > 0 -> live
+          cached != null && cached > 0 -> cached
+          else -> 0.0
+        }
+      }
+      "getCurrentPlaybackTime" -> {
+        val live = existingPlayer?.currentPlaybackTime?.toDouble()
+        val cached = resolvedIndex?.let { currentMsByIndex[it]?.toDouble() }
+        return when {
+          live != null && live >= 0 -> live
+          cached != null && cached >= 0 -> cached
+          else -> 0.0
+        }
+      }
       "getPlayableDuration" -> return existingPlayer?.playableDuration?.toDouble() ?: 0.0
       "getBitrateIndex" -> return existingPlayer?.bitrateIndex ?: -1
       "getSupportResolution" -> {
@@ -1921,36 +2097,47 @@ internal class TuiplayerShortVideoView(
       return
     }
     subtitleAttachmentSources[player] = WeakReference(source)
+    val hasSubtitles = subtitles.any { it.url.isNotBlank() }
+    
+    // Attempt manual addition to ensure legacy/older SDK versions work, 
+    // and try (name, url) order as previous comments suggested weirdness.
     var added = false
+    val distinctUrls = mutableSetOf<String>()
     subtitles.forEach { subtitle ->
       val url = subtitle.url
-      if (url.isBlank()) {
-        return@forEach
-      }
-      val name = subtitle.name?.takeIf { it.isNotBlank() } ?: url
-      val mimeType = subtitle.normalizedMimeType()
-      try {
-
-        // 实际测试发现：即使传 (name, url, mimeType)，SDK仍收到颠倒的参数
-        // 改回原始顺序，让SDK的JNI层去调换
-        player.addSubtitleSource(url, name, mimeType)
-
-        added = true
-      } catch (error: Throwable) {
-        Log.w(TAG, "Failed to add subtitle source url=$url", error)
+      // 仅添加 http/https/file 开头的字幕，过滤类似“中文字幕”这样的占位名称
+      val isUrlLike = url.startsWith("http", ignoreCase = true) || url.startsWith("file:", ignoreCase = true) || url.startsWith("/")
+      if (url.isNotBlank() && isUrlLike && distinctUrls.add(url)) {
+        // 为避免 SDK 将 name 当成 URL，用 URL 作为名称
+        val name = url
+        val mimeType = subtitle.normalizedMimeType()
+        try {
+          player.addSubtitleSource(url, name, mimeType)
+          added = true
+        } catch (e: Throwable) {
+          Log.w(TAG, "Failed addSubtitleSource(url,url)", e)
+        }
+      } else if (!isUrlLike) {
+        Log.w(TAG, "Skip non-url subtitle entry: $url")
       }
     }
-    if (!added && currentVodPlayer === player) {
 
-      bindSubtitleView(player, "attachSubtitlesFallback")
-    }
-    if (added) {
+    if (hasSubtitles || added) {
       playersRequiringSubtitles.add(player)
       subtitleSelectionAttempts.remove(player)
+      cachedSubtitleTracks.remove(player)
       maybeSelectSubtitleTrack(player)
       if (currentVodPlayer === player) {
-
         bindSubtitleView(player, "attachSubtitlesSuccess")
+      }
+      // 兜底上报一次字幕轨道，避免 SDK 未触发 onRcvSubTitleTrackInformation
+      mainHandler.postDelayed(
+        { emitSubtitleTrackInfoIfAvailable(player, "attachSubtitles") },
+        100L
+      )
+    } else {
+      if (currentVodPlayer === player) {
+        bindSubtitleView(player, "attachSubtitlesFallback")
       }
     }
   }
@@ -2005,16 +2192,33 @@ internal class TuiplayerShortVideoView(
     } catch (error: Throwable) {
       Log.w(TAG, "trySelectSubtitleTrack failed to obtain tracks", error)
       null
-    } ?: return false
+    } ?: cachedSubtitleTracks[player]
 
-    val target = tracks.firstOrNull {
-      it.trackType == TXTrackInfo.TX_VOD_MEDIA_TRACK_TYPE_SUBTITLE
-    } ?: return false
+    if (tracks.isNullOrEmpty()) {
+      Log.w(TAG, "trySelectSubtitleTrack: no tracks available")
+      return false
+    }
+    cachedSubtitleTracks[player] = tracks
+    tracks.forEach { info ->
+      Log.d(
+        TAG,
+        "SubtitleTrack trackIndex=${info.trackIndex}, type=${info.trackType}, name=${info.name}, language=${info.language}"
+      )
+    }
+
+    val target = pickSubtitleTrack(tracks) ?: return false
     return try {
       if (player === currentVodPlayer) {
         bindSubtitleView(player, "trySelectSubtitleTrack")
+      } else {
+        bindSubtitleView(player, "trySelectSubtitleTrack.nonCurrent")
       }
       player.selectTrack(target.trackIndex)
+      emitSubtitleTrackInfoIfAvailable(player, "trySelectSubtitleTrack")
+      Log.d(
+        TAG,
+        "Subtitle track selected trackIndex=${target.trackIndex}, name=${target.name}, type=${target.trackType}"
+      )
 
       true
     } catch (error: Throwable) {
@@ -2035,16 +2239,93 @@ internal class TuiplayerShortVideoView(
     players.forEach { applySubtitleStyleToPlayer(it) }
   }
 
+  private fun emitSubtitleTrackInfoIfAvailable(player: ITUIVodPlayer, reason: String) {
+    val tracks = try {
+      player.subtitleTrackInfo
+    } catch (error: Throwable) {
+      Log.w(TAG, "emitSubtitleTrackInfoIfAvailable failed reason=$reason", error)
+      null
+    } ?: cachedSubtitleTracks[player]
+    if (tracks.isNullOrEmpty()) {
+      Log.d(TAG, "emitSubtitleTrackInfoIfAvailable empty reason=$reason")
+      return
+    }
+    cachedSubtitleTracks[player] = tracks
+    Log.d(TAG, "emitSubtitleTrackInfoIfAvailable size=${tracks.size} reason=$reason")
+    emitVodEvent("onRcvSubtitleTrackInformation", tracks.toWritableArray())
+  }
+
+  private fun selectSubtitleTrackFromList(
+    player: ITUIVodPlayer,
+    list: List<TXTrackInfo>,
+    reason: String
+  ) {
+    cachedSubtitleTracks[player] = list
+    if (list.isEmpty()) {
+      return
+    }
+    // 尝试直接用回调的列表选轨
+    val picked = pickSubtitleTrack(list)
+    if (picked != null) {
+      try {
+        bindSubtitleView(player, "selectSubtitleTrackFromList.$reason")
+        player.selectTrack(picked.trackIndex)
+        Log.d(
+          TAG,
+          "Subtitle track selected via callback trackIndex=${picked.trackIndex}, name=${picked.name}, type=${picked.trackType}, reason=$reason"
+        )
+      } catch (error: Throwable) {
+        Log.w(TAG, "selectSubtitleTrackFromList failed reason=$reason", error)
+      }
+    }
+  }
+
+  private fun pickSubtitleTrack(tracks: List<TXTrackInfo>): TXTrackInfo? {
+    fun isUrlLike(name: String?): Boolean {
+      if (name.isNullOrBlank()) return false
+      val lower = name.lowercase()
+      return lower.startsWith("http") || lower.contains(".vtt") || lower.contains(".srt")
+    }
+
+    val subtitleCandidates = tracks.filter { info ->
+      // 兼容不同 SDK 里字幕轨道的 type 定义：优先 SUBTITLE，其次只要不是音/视频的轨道都尝试
+      info.trackType == TXTrackInfo.TX_VOD_MEDIA_TRACK_TYPE_SUBTITLE ||
+        (info.trackType != TXTrackInfo.TX_VOD_MEDIA_TRACK_TYPE_AUDIO &&
+          info.trackType != TXTrackInfo.TX_VOD_MEDIA_TRACK_TYPE_VIDEO)
+    }
+
+    if (subtitleCandidates.isEmpty()) {
+      Log.w(TAG, "pickSubtitleTrack: no subtitle-like tracks (tracks=${tracks.size})")
+      return null
+    }
+
+    return when {
+      subtitleCandidates.isNotEmpty() -> {
+        // 优先选择包含 url/后缀的字幕轨道；若有多个，取最后一个（通常是外挂字幕/网络字幕）
+        val urlLike = subtitleCandidates.lastOrNull { isUrlLike(it.name) }
+        urlLike
+          ?: subtitleCandidates.firstOrNull { !it.name.isNullOrBlank() }
+          ?: subtitleCandidates.first()
+      }
+      else -> null
+    }
+  }
+
   private fun applySubtitleStyleToPlayer(player: ITUIVodPlayer) {
     val renderModel = subtitleStyle?.toRenderModel() ?: defaultSubtitleRenderModel()
     player.setSubtitleStyle(renderModel)
+    try {
+      player.setSubtitleView(subtitleView)
+    } catch (error: Throwable) {
+      Log.w(TAG, "applySubtitleStyleToPlayer setSubtitleView failed", error)
+    }
   }
 
   private fun bindSubtitleView(player: ITUIVodPlayer, reason: String) {
     if (Looper.myLooper() == Looper.getMainLooper()) {
       try {
         player.setSubtitleView(subtitleView)
-
+        Log.d(TAG, "bindSubtitleView success reason=$reason")
       } catch (error: Throwable) {
         Log.w(TAG, "bindSubtitleView failed reason=$reason", error)
       }
@@ -2059,20 +2340,20 @@ internal class TuiplayerShortVideoView(
       canvasWidth = if (measuredWidth > 0) measuredWidth else 1080
       canvasHeight = if (measuredHeight > 0) measuredHeight else 2376
       // 增大字体确保可见
-      fontSize = 48f  // 从36增加到48
+      fontSize = 56f  // 再增大字号
       fontScale = 1.0f
-      // 纯白色文字
-      fontColor = -1  // 0xFFFFFFFF
+      // 亮黄色文字
+      fontColor = Color.parseColor("#FFFF66")
       // 粗黑色描边，确保对比度
-      outlineWidth = 6f  // 从4增加到6
-      outlineColor = -16777216  // 0xFF000000
+      outlineWidth = 8f
+      outlineColor = Color.parseColor("#CC000000")
       // 加粗字体
       isBondFontStyle = true
-      lineSpace = 8f
+      lineSpace = 10f
       // 边距设置
       startMargin = 20f
       endMargin = 20f
-      verticalMargin = 50f
+      verticalMargin = 60f
     }
   }
 
@@ -2409,6 +2690,10 @@ private fun List<TXTrackInfo>?.toWritableArray(): WritableMap {
   this?.forEach { info ->
     val itemMap = Arguments.createMap()
     itemMap.putString("description", info.toString())
+    itemMap.putInt("trackIndex", info.trackIndex)
+    itemMap.putInt("trackType", info.trackType)
+    itemMap.putStringIfNotBlank("name", info.name)
+    itemMap.putStringIfNotBlank("language", info.language)
     array.pushMap(itemMap)
   }
   map.putArray("tracks", array)
@@ -2565,6 +2850,10 @@ private fun ReadableMap.toShortVideoMetadata(): TuiplayerShortVideoSource.Metada
   val icon = getStringOrNull("icon")
   val type = getTagList("type")
   val details = getStringOrNull("details")
+  val showCover = getBooleanOrNull("showCover")
+  val playText = getStringOrNull("playText")
+  val moreText = getStringOrNull("moreText")
+  val watchMoreText = getStringOrNull("watchMoreText")
   val likeCount = getDoubleOrNull("likeCount")?.toLong()
   val favoriteCount = getDoubleOrNull("favoriteCount")?.toLong()
   val isShowPaly = getBooleanOrNull("isShowPaly")
@@ -2576,6 +2865,10 @@ private fun ReadableMap.toShortVideoMetadata(): TuiplayerShortVideoSource.Metada
     icon = icon,
     type = type,
     details = details,
+    showCover = showCover,
+    playText = playText,
+    moreText = moreText ?: watchMoreText,
+    watchMoreText = watchMoreText,
     likeCount = likeCount,
     favoriteCount = favoriteCount,
     isShowPaly = isShowPaly,
@@ -2595,6 +2888,10 @@ internal fun TuiplayerShortVideoSource.Metadata.toWritableMap(): WritableMap {
     map.putArray("type", array)
   }
   details?.takeIf { it.isNotBlank() }?.let { map.putString("details", it) }
+  showCover?.let { map.putBoolean("showCover", it) }
+  playText?.takeIf { it.isNotBlank() }?.let { map.putString("playText", it) }
+  moreText?.takeIf { it.isNotBlank() }?.let { map.putString("moreText", it) }
+  watchMoreText?.takeIf { it.isNotBlank() }?.let { map.putString("watchMoreText", it) }
   likeCount?.let { map.putDouble("likeCount", it.toDouble()) }
   favoriteCount?.let { map.putDouble("favoriteCount", it.toDouble()) }
   isShowPaly?.let { map.putBoolean("isShowPaly", it) }

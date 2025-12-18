@@ -49,7 +49,7 @@
                     <!-- Album Art Placeholder -->
                     <ImageView
                         android:id="@+id/tuiplayer_overlay_album_art"
-                        android:layout_width="48dp"
+                        android:layout_width="36dp"
                         android:layout_height="64dp"
                         android:scaleType="centerCrop"
                         android:background="@drawable/tui_overlay_album_art_bg"
@@ -130,6 +130,7 @@
                         android:contentDescription="Play"/>
 
                     <TextView
+                        android:id="@+id/tuiplayer_overlay_play_text"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Play"
@@ -152,13 +153,12 @@
                 android:layout_gravity="bottom"
                 android:orientation="vertical"
                 android:gravity="end|bottom"
-                android:paddingEnd="10dp"
-              >
+                android:paddingEnd="10dp">
 
                 <!-- Collect (was Favorite) -->
                 <LinearLayout
                     android:id="@+id/tuiplayer_overlay_favorite"
-                    android:layout_width="wrap_content"
+                    android:layout_width="36dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:orientation="vertical"
@@ -175,7 +175,7 @@
 
                     <TextView
                         android:id="@+id/tuiplayer_overlay_favorite_count"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:minWidth="36dp"
                         android:gravity="center"
@@ -193,7 +193,7 @@
                 <!-- Like -->
                 <LinearLayout
                     android:id="@+id/tuiplayer_overlay_like"
-                    android:layout_width="wrap_content"
+                    android:layout_width="36dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:orientation="vertical"
@@ -210,7 +210,7 @@
 
                     <TextView
                         android:id="@+id/tuiplayer_overlay_like_count"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:minWidth="36dp"
                         android:gravity="center"
@@ -228,7 +228,7 @@
                 <!-- More (was Comment) -->
                 <LinearLayout
                     android:id="@+id/tuiplayer_overlay_comment"
-                    android:layout_width="wrap_content"
+                    android:layout_width="36dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:orientation="vertical"
@@ -244,16 +244,20 @@
 
                     <TextView
                         android:id="@+id/tuiplayer_overlay_comment_count"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="More"
+                        android:minWidth="36dp"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:gravity="center"
                         android:textColor="#FFFFFF"
                         android:textSize="12sp"
                         android:shadowColor="#80000000"
                         android:shadowDx="0"
                         android:shadowDy="1"
                         android:shadowRadius="1.5"/>
-                </LinearLayout>
+            </LinearLayout>
 
             </LinearLayout>
 

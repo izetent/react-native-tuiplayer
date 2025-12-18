@@ -105,8 +105,14 @@ export type ShortVideoOverlayMeta = {
   isBookmarked?: boolean;
   /** 是否已关注；iOS 旧信息层使用。 */
   isFollowed?: boolean;
+  /** Android 信息层是否展示封面/图片。 */
+  showCover?: boolean;
+  /** 播放按钮自定义文案。 */
+  playText?: string;
   /** “查看更多”一类的提示文案。 */
   watchMoreText?: string;
+  /** “更多”按钮自定义文案；未提供时退回 watchMoreText 或默认值。 */
+  moreText?: string;
   /** 兼容旧字段：作者名称。 */
   authorName?: string;
   /** 兼容旧字段：作者头像。 */

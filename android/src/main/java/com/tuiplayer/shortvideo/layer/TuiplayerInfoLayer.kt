@@ -48,6 +48,7 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
   private var typeTextView: TextView? = null
   private var descriptionView: TextView? = null
   private var playButton: View? = null
+  private var playTextView: TextView? = null
   private var panelContainer: View? = null
 
   private var collectButton: View? = null
@@ -100,6 +101,7 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     typeTextView = root.findViewById(R.id.tuiplayer_overlay_type)
     descriptionView = root.findViewById(R.id.tuiplayer_overlay_description)
     playButton = root.findViewById(R.id.tuiplayer_overlay_play_btn)
+    playTextView = root.findViewById(R.id.tuiplayer_overlay_play_text)
     panelContainer = root.findViewById(R.id.tuiplayer_overlay_panel_container)
 
     collectButton = root.findViewById(R.id.tuiplayer_overlay_favorite)
@@ -552,19 +554,27 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     val episodeCoverUrl = metadata.icon
     val videoView = videoView
     val target = albumArtView
-    if (!episodeCoverUrl.isNullOrBlank() && videoView != null && target != null) {
-      Glide.with(videoView).clear(target)
-      Glide.with(videoView)
-        .load(episodeCoverUrl)
-        .placeholder(R.drawable.tui_overlay_album_art_bg)
-        .centerCrop()
-        .into(target)
-    } else {
-      if (videoView != null && target != null) {
+    val shouldShowCover = metadata.showCover != false
+    target?.visibility = if (shouldShowCover) View.VISIBLE else View.GONE
+    if (shouldShowCover) {
+      if (!episodeCoverUrl.isNullOrBlank() && videoView != null && target != null) {
         Glide.with(videoView).clear(target)
+        Glide.with(videoView)
+          .load(episodeCoverUrl)
+          .placeholder(R.drawable.tui_overlay_album_art_bg)
+          .centerCrop()
+          .into(target)
+      } else {
+        if (videoView != null && target != null) {
+          Glide.with(videoView).clear(target)
+        }
+        target?.setImageDrawable(null)
+        target?.setBackgroundResource(R.drawable.tui_overlay_album_art_bg)
       }
-      target?.setImageDrawable(null)
-      target?.setBackgroundResource(R.drawable.tui_overlay_album_art_bg)
+    } else if (videoView != null && target != null) {
+      Glide.with(videoView).clear(target)
+      target.setImageDrawable(null)
+      target.background = null
     }
 
     // Tags (type) - Create horizontal rows that wrap
@@ -588,6 +598,8 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
 
     // Play Button Visibility (isShowPaly)
     playButton?.visibility = if (metadata.isShowPaly == true) View.VISIBLE else View.GONE
+    val resolvedPlayText = metadata.playText?.takeIf { it.isNotBlank() }
+    playTextView?.text = resolvedPlayText ?: playTextView?.text ?: "Play"
 
     // Counts & states - simplified: just apply the incoming metadata
     lastLikeCount = max(0L, metadata.likeCount ?: 0L)
@@ -597,6 +609,11 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     
     renderReactionState()
     
+    val resolvedMoreText = metadata.moreText?.takeIf { it.isNotBlank() }
+      ?: metadata.watchMoreText?.takeIf { it.isNotBlank() }
+    val defaultMore = moreCountView?.text?.toString()?.takeIf { it.isNotBlank() } ?: "More"
+    moreCountView?.text = resolvedMoreText ?: defaultMore
+
     // More icon always default
     applyIconTint(moreIconView, defaultIconColor)
   }

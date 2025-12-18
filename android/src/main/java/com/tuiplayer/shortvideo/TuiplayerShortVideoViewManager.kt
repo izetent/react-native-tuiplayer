@@ -101,6 +101,8 @@ internal class TuiplayerShortVideoViewManager : SimpleViewManager<TuiplayerShort
       TuiplayerShortVideoPageChangedEvent.EVENT_NAME to mapOf("registrationName" to "onPageChanged"),
       TuiplayerShortVideoEndReachedEvent.EVENT_NAME to mapOf("registrationName" to "onEndReached"),
       TuiplayerShortVideoTopReachedEvent.EVENT_NAME to mapOf("registrationName" to "onTopReached"),
+      TuiplayerShortVideoPlaybackStartEvent.EVENT_NAME to mapOf("registrationName" to "onPlaybackStart"),
+      TuiplayerShortVideoPlaybackEndEvent.EVENT_NAME to mapOf("registrationName" to "onPlaybackEnd"),
       TuiplayerShortVideoVodEvent.EVENT_NAME to mapOf("registrationName" to "onVodEvent"),
       TuiplayerShortVideoReadyEvent.EVENT_NAME to mapOf("registrationName" to "onReady")
     )
@@ -367,6 +369,10 @@ private fun ReadableMap.toShortVideoMetadata(): TuiplayerShortVideoSource.Metada
   val icon = getStringOrNull("icon")
   val type = getTagList("type")
   val details = getStringOrNull("details")
+  val showCover = getBooleanOrNull("showCover")
+  val playText = getStringOrNull("playText")
+  val moreText = getStringOrNull("moreText")
+  val watchMoreText = getStringOrNull("watchMoreText")
   val likeCount = getDoubleOrNull("likeCount")?.toLong()
   val favoriteCount = getDoubleOrNull("favoriteCount")?.toLong()
   val isShowPaly = getBooleanOrNull("isShowPaly")
@@ -382,6 +388,10 @@ private fun ReadableMap.toShortVideoMetadata(): TuiplayerShortVideoSource.Metada
     icon = icon,
     type = type,
     details = details,
+    showCover = showCover,
+    playText = playText,
+    moreText = moreText ?: watchMoreText,
+    watchMoreText = watchMoreText,
     likeCount = likeCount,
     favoriteCount = favoriteCount,
     isShowPaly = isShowPaly,

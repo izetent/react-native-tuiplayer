@@ -75,6 +75,44 @@ repositories {
 
 def kotlin_version = getExtOrDefault("kotlinVersion")
 
+// 解压本地 AAR，拿到 classes.jar + jni/资源，便于在 AAR 发布时一并打包进去
+def extractTuiplayerCoreClasses = tasks.register("extractTuiplayerCoreClasses", Copy) {
+  from(zipTree("libs/tuiplayercore-release_2.1.8.75.aar"))
+  include("classes.jar", "jni/**", "assets/**")
+  includeEmptyDirs = false
+  into("$buildDir/extracted-aar/tuiplayercore")
+  rename { fileName -> fileName == "classes.jar" ? "tuiplayercore-release_2.1.8.75.jar" : fileName }
+}
+
+def extractTuiplayerShortVideoClasses = tasks.register("extractTuiplayerShortVideoClasses", Copy) {
+  from(zipTree("libs/tuiplayershortvideo-release_2.1.8.75.aar"))
+  include("classes.jar", "jni/**", "assets/**", "res/**")
+  includeEmptyDirs = false
+  into("$buildDir/extracted-aar/tuiplayershortvideo")
+  rename { fileName -> fileName == "classes.jar" ? "tuiplayershortvideo-release_2.1.8.75.jar" : fileName }
+}
+
+afterEvaluate {
+  tasks.named("preBuild").configure {
+    dependsOn(extractTuiplayerCoreClasses)
+    dependsOn(extractTuiplayerShortVideoClasses)
+  }
+}
+
+android {
+  // 把 AAR 中的 jni/资源挂到当前库的 sourceSet，打包时一起带上
+  sourceSets {
+    main {
+      jniLibs.srcDir("$buildDir/extracted-aar/tuiplayercore/jni")
+      jniLibs.srcDir("$buildDir/extracted-aar/tuiplayershortvideo/jni")
+      assets.srcDir("$buildDir/extracted-aar/tuiplayercore/assets")
+      assets.srcDir("$buildDir/extracted-aar/tuiplayershortvideo/assets")
+      // 只引入 shortvideo AAR 的资源，避免与 core 中的同名样式重复
+      res.srcDir("$buildDir/extracted-aar/tuiplayershortvideo/res")
+    }
+  }
+}
+
 dependencies {
   implementation "com.facebook.react:react-android"
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
@@ -84,6 +122,10 @@ dependencies {
   implementation "androidx.viewpager2:viewpager2:1.1.0"
   implementation "com.tencent.liteav:LiteAVSDK_Player_Premium:latest.release"
   implementation "com.github.bumptech.glide:glide:4.16.0"
-  implementation files("libs/tuiplayercore-release_2.1.8.75.aar")
-  implementation files("libs/tuiplayershortvideo-release_2.1.8.75.aar")
+  api(files(extractTuiplayerCoreClasses.map { task ->
+    new File(task.destinationDir, "tuiplayercore-release_2.1.8.75.jar")
+  }))
+  api(files(extractTuiplayerShortVideoClasses.map { task ->
+    new File(task.destinationDir, "tuiplayershortvideo-release_2.1.8.75.jar")
+  }))
 }
