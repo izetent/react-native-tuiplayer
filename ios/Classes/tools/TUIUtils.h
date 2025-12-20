@@ -1,6 +1,6 @@
 //
 //  TUIUtils.h
-//  ftuiplayer_kit
+//  rnplayer_kit
 //
 //  Created by Kongdywang on 2024/7/29.
 //

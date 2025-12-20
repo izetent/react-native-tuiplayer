@@ -1,5 +1,5 @@
-export { FTUIPlayerView } from './FTUIPlayerView';
-export { FTUIPlayerShortController } from './FTUIPlayerShortController';
+export { RNPlayerView } from './RNPlayerView';
+export { RNPlayerShortController } from './RNPlayerShortController';
 export { TUIVodPlayerController } from './TUIVodPlayerController';
-export { setTUIPlayerConfig, setMonetAppInfo } from './FTUIPlayerKit';
+export { setTUIPlayerConfig, setMonetAppInfo } from './RNPlayerKit';
 export * from './types';

@@ -1,6 +1,18 @@
 import type { Component, RefObject } from 'react';
 import { findNodeHandle } from 'react-native';
 
+import type {
+  NativePlayerConfig,
+  NativeVodSource,
+  NativeVodStrategy,
+} from './NativeTxplayer';
+
+export type {
+  NativePlayerConfig,
+  NativeVodSource,
+  NativeVodStrategy,
+} from './NativeTxplayer';
+
 export const PLAYER_VIEW_MANAGER = 'TUIShortVideoItemView';
 
 export const EVENT_PLAY_EVENT = 'txplayer.onPlayEvent';
@@ -8,13 +20,13 @@ export const EVENT_CONTROLLER_BIND = 'txplayer.onControllerBind';
 export const EVENT_CONTROLLER_UNBIND = 'txplayer.onControllerUnbind';
 export const EVENT_VIEW_DISPOSED = 'txplayer.onViewDisposed';
 
-export interface FTUIPlayerConfig {
+export interface RNPlayerConfig {
   licenseUrl: string;
   licenseKey: string;
   enableLog?: boolean;
 }
 
-export interface FTUIVideoSource {
+export interface RNVideoSource {
   videoURL?: string;
   coverPictureUrl?: string;
   appId?: number;
@@ -24,7 +36,7 @@ export interface FTUIVideoSource {
   extInfo?: Record<string, unknown> | null;
 }
 
-export interface FTUIPlayerVodStrategy {
+export interface RNPlayerVodStrategy {
   preloadCount?: number;
   preDownloadSize?: number;
   preloadBufferSizeInMB?: number;
@@ -35,34 +47,7 @@ export interface FTUIPlayerVodStrategy {
   enableSuperResolution?: boolean;
 }
 
-export interface NativePlayerConfig {
-  licenseUrl: string;
-  licenseKey: string;
-  enableLog: boolean;
-}
-
-export interface NativeVodSource {
-  videoURL?: string;
-  coverPictureUrl?: string;
-  appId?: number;
-  fileId?: string;
-  pSign?: string;
-  isAutoPlay?: boolean;
-  extInfo?: Record<string, unknown> | null;
-}
-
-export interface NativeVodStrategy {
-  preloadCount: number;
-  preDownloadSize: number;
-  preloadBufferSizeInMB: number;
-  maxBufferSize: number;
-  preferredResolution: number;
-  progressInterval: number;
-  renderMode: number;
-  enableSuperResolution: boolean;
-}
-
-export type FTUIPlayerViewHandle =
+export type RNPlayerViewHandle =
   | number
   | null
   | undefined
@@ -70,14 +55,14 @@ export type FTUIPlayerViewHandle =
   | RefObject<Component<any, any>>
   | { current?: any };
 
-export interface FTUIVodEvent {
+export interface RNVodEvent {
   [key: string]: unknown;
 }
 
-export interface FTUIVodControlListener {
+export interface RNVodControlListener {
   onVodControllerBind?: () => void;
   onVodControllerUnBind?: () => void;
-  onVodPlayerEvent?: (event: FTUIVodEvent) => void;
+  onVodPlayerEvent?: (event: RNVodEvent) => void;
 }
 
 export enum TUIPlayerState {
@@ -88,7 +73,7 @@ export enum TUIPlayerState {
   END = 'END',
 }
 
-export const FTXMonetConstant = {
+export const RNMonetConstant = {
   SR_ALGORITHM_TYPE_STANDARD: 1,
   SR_ALGORITHM_TYPE_PROFESSIONAL_HIGH_QUALITY: 2,
   SR_ALGORITHM_TYPE_PROFESSIONAL_FAST: 3,
@@ -179,7 +164,7 @@ const DEFAULT_VOD_STRATEGY: NativeVodStrategy = {
   enableSuperResolution: false,
 };
 
-export function serializePlayerConfig(config: FTUIPlayerConfig): NativePlayerConfig {
+export function serializePlayerConfig(config: RNPlayerConfig): NativePlayerConfig {
   return {
     licenseUrl: config.licenseUrl,
     licenseKey: config.licenseKey,
@@ -187,7 +172,7 @@ export function serializePlayerConfig(config: FTUIPlayerConfig): NativePlayerCon
   };
 }
 
-export function serializeVideoSource(source: FTUIVideoSource): NativeVodSource {
+export function serializeVideoSource(source: RNVideoSource): NativeVodSource {
   return {
     videoURL: source.videoURL,
     coverPictureUrl: source.coverPictureUrl,
@@ -199,23 +184,23 @@ export function serializeVideoSource(source: FTUIVideoSource): NativeVodSource {
   };
 }
 
-export function serializeVideoSources(sources: FTUIVideoSource[]): NativeVodSource[] {
+export function serializeVideoSources(sources: RNVideoSource[]): NativeVodSource[] {
   return sources.map(serializeVideoSource);
 }
 
-export function serializeVodStrategy(strategy?: FTUIPlayerVodStrategy): NativeVodStrategy {
+export function serializeVodStrategy(strategy?: RNPlayerVodStrategy): NativeVodStrategy {
   return {
     ...DEFAULT_VOD_STRATEGY,
     ...(strategy ?? {}),
   };
 }
 
-export function resolveViewTag(handle: FTUIPlayerViewHandle): number {
+export function resolveViewTag(handle: RNPlayerViewHandle): number {
   if (typeof handle === 'number') {
     return handle;
   }
   if (!handle) {
-    throw new Error('FTUIPlayerView ref is required before binding');
+    throw new Error('RNPlayerView ref is required before binding');
   }
   const possibleRef = handle as { current?: any };
   if (possibleRef.current) {
@@ -227,4 +212,3 @@ export function resolveViewTag(handle: FTUIPlayerViewHandle): number {
   }
   return nodeHandle;
 }
-

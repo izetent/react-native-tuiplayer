@@ -6,7 +6,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.module.model.ReactModuleInfo
 import com.facebook.react.module.model.ReactModuleInfoProvider
 import com.facebook.react.uimanager.ViewManager
-import com.txplayer.ftuiplayer.view.FTUIPlayerViewManager
+import com.txplayer.rnuiplayer.view.RNPlayerViewManager
 import java.util.HashMap
 
 class TxplayerPackage : BaseReactPackage() {
@@ -34,6 +34,6 @@ class TxplayerPackage : BaseReactPackage() {
   }
 
   override fun createViewManagers(reactContext: ReactApplicationContext): MutableList<ViewManager<*, *>> {
-    return mutableListOf(FTUIPlayerViewManager())
+    return mutableListOf(RNPlayerViewManager())
   }
 }

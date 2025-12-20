@@ -1,10 +1,31 @@
 import { TurboModuleRegistry, type TurboModule } from 'react-native';
 
-import type {
-  NativePlayerConfig,
-  NativeVodSource,
-  NativeVodStrategy,
-} from './types';
+export type NativePlayerConfig = {
+  licenseUrl: string;
+  licenseKey: string;
+  enableLog: boolean;
+};
+
+export type NativeVodSource = {
+  videoURL?: string;
+  coverPictureUrl?: string;
+  appId?: number;
+  fileId?: string;
+  pSign?: string;
+  isAutoPlay?: boolean;
+  extInfo?: { [key: string]: unknown } | null;
+};
+
+export type NativeVodStrategy = {
+  preloadCount: number;
+  preDownloadSize: number;
+  preloadBufferSizeInMB: number;
+  maxBufferSize: number;
+  preferredResolution: number;
+  progressInterval: number;
+  renderMode: number;
+  enableSuperResolution: boolean;
+};
 
 export interface Spec extends TurboModule {
   setPlayerConfig(config: NativePlayerConfig): Promise<void>;

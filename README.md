@@ -21,24 +21,24 @@ The package pulls the required native SDKs (`TXLiteAVSDK_Player_Premium`, `TUIPl
 ```tsx
 import React, { useEffect, useRef } from 'react';
 import {
-  FTUIPlayerShortController,
-  FTUIPlayerView,
+  RNPlayerShortController,
+  RNPlayerView,
   setTUIPlayerConfig,
-  FTUIVideoSource,
+  RNVideoSource,
 } from 'react-native-txplayer';
 
-const SOURCES: FTUIVideoSource[] = [
+const SOURCES: RNVideoSource[] = [
   { videoURL: 'https://liteavapp.qcloud.com/general/vod_demo/vod-demo.mp4' },
 ];
 
 export default function FeedPlayer() {
   const viewRef = useRef(null);
-  const controllerRef = useRef<FTUIPlayerShortController>();
+  const controllerRef = useRef<RNPlayerShortController>();
 
   useEffect(() => {
     async function bootstrap() {
       await setTUIPlayerConfig({ licenseUrl: 'YOUR_URL', licenseKey: 'YOUR_KEY' });
-      const controller = new FTUIPlayerShortController();
+      const controller = new RNPlayerShortController();
       controllerRef.current = controller;
       await controller.setModels(SOURCES);
       const vod = await controller.bindVodPlayer(viewRef, 0);
@@ -49,33 +49,33 @@ export default function FeedPlayer() {
     return () => controllerRef.current?.release();
   }, []);
 
-  return <FTUIPlayerView ref={viewRef} style={{ flex: 1 }} />;
+  return <RNPlayerView ref={viewRef} style={{ flex: 1 }} />;
 }
 ```
 
 ## API overview
 
-### `setTUIPlayerConfig(config: FTUIPlayerConfig)`
+### `setTUIPlayerConfig(config: RNPlayerConfig)`
 Configures the global TUIPlayer license and logging behaviour. Must be called before instantiating controllers.
 
 ### `setMonetAppInfo(appId: number, authId: number, srAlgorithmType: number)`
-Initialises Tencent Monet (super resolution) when you own the licence. The SR algorithm type constants are exposed via `FTXMonetConstant`.
+Initialises Tencent Monet (super resolution) when you own the licence. The SR algorithm type constants are exposed via `RNMonetConstant`.
 
-### `FTUIPlayerShortController`
+### `RNPlayerShortController`
 Represents a short‑video feed controller (one per list). Methods mirror the Flutter plugin:
 
 | Method | Description |
 | --- | --- |
-| `setModels(sources: FTUIVideoSource[])` | Resets the feed data set. |
+| `setModels(sources: RNVideoSource[])` | Resets the feed data set. |
 | `appendModels(sources)` | Appends more videos for endless scrolling. |
-| `bindVodPlayer(viewRef, index)` | Binds a `FTUIPlayerView` to a feed index and returns a `TUIVodPlayerController`. Call this for the current page. |
+| `bindVodPlayer(viewRef, index)` | Binds a `RNPlayerView` to a feed index and returns a `TUIVodPlayerController`. Call this for the current page. |
 | `preCreateVodPlayer(viewRef, index)` | Prepares neighbour cells for instant playback. |
-| `setVodStrategy(strategy: FTUIPlayerVodStrategy)` | Fine tune preload counts, buffer sizes, render mode and SR toggle. |
+| `setVodStrategy(strategy: RNPlayerVodStrategy)` | Fine tune preload counts, buffer sizes, render mode and SR toggle. |
 | `startCurrent()` | Resumes playback of the currently bound index. |
 | `setVideoLoop(isLoop: boolean)` | Enables/Disables loop playback. |
 | `release()` | Releases all players and preload resources. |
 
-### `FTUIPlayerView`
+### `RNPlayerView`
 Native view that renders the current `TUIShortVideoItemView`. Use `ref`/`findNodeHandle` when binding.
 
 ### `TUIVodPlayerController`
@@ -85,13 +85,13 @@ Returned by `bindVodPlayer`. Provides on-demand control and events:
 * `getDuration()`, `getCurrentPlayTime()`, `isPlaying()`
 * `addListener(listener)` — receives controller bind/unbind notifications and `onVodPlayerEvent` with `TXVodPlayEvent` codes. Remove with `removeListener`.
 
-### `FTUIVideoSource`
+### `RNVideoSource`
 Define one of `videoURL` or `fileId` (with `appId` & optional `pSign`). `coverPictureUrl` is shown before the first frame. `extInfo` allows passing custom metadata down to the native layer.
 
 ## Notes
 
 - **Licensing:** Without a valid licence `startCurrent()` returns `TUI_ERROR_INVALID_LICENSE`. Configure `licenseUrl` + `licenseKey` before using this package.
-- **Super Resolution:** Call `setMonetAppInfo` first, then toggle `FTUIPlayerVodStrategy.enableSuperResolution`.  
+- **Super Resolution:** Call `setMonetAppInfo` first, then toggle `RNPlayerVodStrategy.enableSuperResolution`.  
 - **Platform parity:** The TypeScript surface mimics the Flutter plugin so existing business logic can be ported with minimal changes.
 
 ## Contributing

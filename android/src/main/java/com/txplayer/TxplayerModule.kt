@@ -5,18 +5,18 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.module.annotations.ReactModule
-import com.txplayer.ftuiplayer.common.TxplayerEventDispatcher
-import com.txplayer.ftuiplayer.player.FTUIShortController
-import com.txplayer.ftuiplayer.player.FTUIShortEngine
-import com.txplayer.ftuiplayer.tools.FTUITransformer
-import com.txplayer.ftuiplayer.view.FTUIShortVideoItemView
-import com.txplayer.ftuiplayer.view.FTUIViewRegistry
+import com.txplayer.rnuiplayer.common.TxplayerEventDispatcher
+import com.txplayer.rnuiplayer.player.RNShortController
+import com.txplayer.rnuiplayer.player.RNShortEngine
+import com.txplayer.rnuiplayer.tools.RNTransformer
+import com.txplayer.rnuiplayer.view.RNShortVideoItemView
+import com.txplayer.rnuiplayer.view.RNViewRegistry
 
 @ReactModule(name = TxplayerModule.NAME)
 class TxplayerModule(reactContext: ReactApplicationContext) :
   NativeTxplayerSpec(reactContext) {
 
-  private val shortEngine = FTUIShortEngine(reactContext)
+  private val shortEngine = RNShortEngine(reactContext)
 
   init {
     TxplayerEventDispatcher.init(reactContext)
@@ -53,14 +53,14 @@ class TxplayerModule(reactContext: ReactApplicationContext) :
 
   override fun shortControllerSetModels(controllerId: Double, sources: ReadableArray, promise: Promise) {
     withController(controllerId, promise) { controller ->
-      val result = controller.setModels(FTUITransformer.transformVideoSources(sources))
+      val result = controller.setModels(RNTransformer.transformVideoSources(sources))
       promise.resolve(result.toDouble())
     }
   }
 
   override fun shortControllerAppendModels(controllerId: Double, sources: ReadableArray, promise: Promise) {
     withController(controllerId, promise) { controller ->
-      val result = controller.appendModels(FTUITransformer.transformVideoSources(sources))
+      val result = controller.appendModels(RNTransformer.transformVideoSources(sources))
       promise.resolve(result.toDouble())
     }
   }
@@ -81,7 +81,7 @@ class TxplayerModule(reactContext: ReactApplicationContext) :
 
   override fun shortControllerSetVodStrategy(controllerId: Double, strategy: ReadableMap, promise: Promise) {
     withController(controllerId, promise) { controller ->
-      controller.setVodStrategy(FTUITransformer.transformVodStrategy(strategy))
+      controller.setVodStrategy(RNTransformer.transformVodStrategy(strategy))
       promise.resolve(null)
     }
   }
@@ -108,7 +108,7 @@ class TxplayerModule(reactContext: ReactApplicationContext) :
 
   override fun vodPlayerStartPlay(viewTag: Double, source: ReadableMap, promise: Promise) {
     withPlayer(viewTag, promise) { view ->
-      val videoSource = FTUITransformer.transformVideoSource(source)
+      val videoSource = RNTransformer.transformVideoSource(source)
       view.vodController.startPlay(videoSource)
       promise.resolve(null)
     }
@@ -185,7 +185,7 @@ class TxplayerModule(reactContext: ReactApplicationContext) :
 
   override fun removeListeners(count: Double) {}
 
-  private fun withController(id: Double, promise: Promise, block: (FTUIShortController) -> Unit) {
+  private fun withController(id: Double, promise: Promise, block: (RNShortController) -> Unit) {
     val controller = shortEngine.getController(id.toInt())
     if (controller == null) {
       promise.reject("E_NO_CONTROLLER", "Controller $id not found")
@@ -194,8 +194,8 @@ class TxplayerModule(reactContext: ReactApplicationContext) :
     }
   }
 
-  private fun withPlayer(viewTag: Double, promise: Promise, block: (FTUIShortVideoItemView) -> Unit) {
-    val view = FTUIViewRegistry.get(viewTag.toInt())
+  private fun withPlayer(viewTag: Double, promise: Promise, block: (RNShortVideoItemView) -> Unit) {
+    val view = RNViewRegistry.get(viewTag.toInt())
     if (view == null) {
       promise.reject("E_NO_VIEW", "View $viewTag not found")
     } else {

@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
-  FTUIPlayerShortController,
-  FTUIPlayerView,
-  FTUIVideoSource,
+  RNPlayerShortController,
+  RNPlayerView,
+  RNVideoSource,
   setTUIPlayerConfig,
   TUIVodPlayerController,
 } from 'react-native-txplayer';
@@ -11,7 +11,7 @@ import {
 const LICENSE_URL = '';
 const LICENSE_KEY = '';
 
-const SOURCES: FTUIVideoSource[] = [
+const SOURCES: RNVideoSource[] = [
   {
     videoURL: 'https://liteavapp.qcloud.com/general/vod_demo/vod-demo.mp4',
     coverPictureUrl: 'https://liteavapp.qcloud.com/general/vod_demo/vod-cover.png',
@@ -20,7 +20,7 @@ const SOURCES: FTUIVideoSource[] = [
 
 export default function App() {
   const viewRef = useRef(null);
-  const controllerRef = useRef<FTUIPlayerShortController>();
+  const controllerRef = useRef<RNPlayerShortController>();
   const playerControllerRef = useRef<TUIVodPlayerController | null>(null);
   const [status, setStatus] = useState('Initializing…');
 
@@ -31,7 +31,7 @@ export default function App() {
           licenseUrl: LICENSE_URL,
           licenseKey: LICENSE_KEY,
         });
-        const controller = new FTUIPlayerShortController();
+        const controller = new RNPlayerShortController();
         controllerRef.current = controller;
         await controller.setModels(SOURCES);
         const vodController = await controller.bindVodPlayer(viewRef, 0);
@@ -67,7 +67,7 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.player}>
-        <FTUIPlayerView ref={viewRef} style={styles.player} />
+        <RNPlayerView ref={viewRef} style={styles.player} />
       </View>
       <Text style={styles.status}>{status}</Text>
       <TouchableOpacity style={styles.button} onPress={togglePlayback}>

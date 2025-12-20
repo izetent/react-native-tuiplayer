@@ -3,15 +3,15 @@
 #import <React/RCTBridge.h>
 #import <React/RCTConvert.h>
 
-#import "FTUIEventDispatcher.h"
-#import "FTUIShortEngine.h"
-#import "FTUIShortVideoView.h"
-#import "FTUITransformer.h"
-#import "FTUIViewRegistry.h"
+#import "RNEventDispatcher.h"
+#import "RNShortEngine.h"
+#import "RNShortVideoView.h"
+#import "RNTransformer.h"
+#import "RNViewRegistry.h"
 
 @interface Txplayer ()
 
-@property(nonatomic, strong) FTUIShortEngine *shortEngine;
+@property(nonatomic, strong) RNShortEngine *shortEngine;
 @property(nonatomic, weak) RCTBridge *bridge;
 
 @end
@@ -23,14 +23,14 @@
 - (instancetype)init {
   self = [super init];
   if (self) {
-    _shortEngine = [FTUIShortEngine new];
+    _shortEngine = [RNShortEngine new];
   }
   return self;
 }
 
 - (void)setBridge:(RCTBridge *)bridge {
   _bridge = bridge;
-  [FTUIEventDispatcher setupWithBridge:bridge];
+  [RNEventDispatcher setupWithBridge:bridge];
 }
 
 - (void)setPlayerConfig:(NSDictionary *)config
@@ -69,11 +69,11 @@
                          sources:(NSArray<NSDictionary *> *)sources
                          resolve:(RCTPromiseResolveBlock)resolve
                           reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortController *controller = [self controllerForId:@(controllerId) reject:reject];
+  RNShortController *controller = [self controllerForId:@(controllerId) reject:reject];
   if (!controller) {
     return;
   }
-  NSArray *models = [FTUITransformer videoModelsFromArray:sources];
+  NSArray *models = [RNTransformer videoModelsFromArray:sources];
   NSNumber *result = [controller setModels:models];
   resolve(result);
 }
@@ -82,11 +82,11 @@
                             sources:(NSArray<NSDictionary *> *)sources
                             resolve:(RCTPromiseResolveBlock)resolve
                              reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortController *controller = [self controllerForId:@(controllerId) reject:reject];
+  RNShortController *controller = [self controllerForId:@(controllerId) reject:reject];
   if (!controller) {
     return;
   }
-  NSArray *models = [FTUITransformer videoModelsFromArray:sources];
+  NSArray *models = [RNTransformer videoModelsFromArray:sources];
   NSNumber *result = [controller appendModels:models];
   resolve(result);
 }
@@ -96,7 +96,7 @@
                                index:(double)index
                              resolve:(RCTPromiseResolveBlock)resolve
                               reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortController *controller = [self controllerForId:@(controllerId) reject:reject];
+  RNShortController *controller = [self controllerForId:@(controllerId) reject:reject];
   if (!controller) {
     return;
   }
@@ -109,7 +109,7 @@
                                index:(double)index
                              resolve:(RCTPromiseResolveBlock)resolve
                               reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortController *controller = [self controllerForId:@(controllerId) reject:reject];
+  RNShortController *controller = [self controllerForId:@(controllerId) reject:reject];
   if (!controller) {
     return;
   }
@@ -121,11 +121,11 @@
                              strategy:(NSDictionary *)strategy
                               resolve:(RCTPromiseResolveBlock)resolve
                                reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortController *controller = [self controllerForId:@(controllerId) reject:reject];
+  RNShortController *controller = [self controllerForId:@(controllerId) reject:reject];
   if (!controller) {
     return;
   }
-  TUIPlayerVodStrategyModel *model = [FTUITransformer strategyFromDictionary:strategy ?: @{}];
+  TUIPlayerVodStrategyModel *model = [RNTransformer strategyFromDictionary:strategy ?: @{}];
   [controller setVodStrategy:model];
   resolve(nil);
 }
@@ -133,7 +133,7 @@
 - (void)shortControllerStartCurrent:(double)controllerId
                             resolve:(RCTPromiseResolveBlock)resolve
                              reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortController *controller = [self controllerForId:@(controllerId) reject:reject];
+  RNShortController *controller = [self controllerForId:@(controllerId) reject:reject];
   if (!controller) {
     return;
   }
@@ -144,7 +144,7 @@
                               isLoop:(BOOL)isLoop
                              resolve:(RCTPromiseResolveBlock)resolve
                               reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortController *controller = [self controllerForId:@(controllerId) reject:reject];
+  RNShortController *controller = [self controllerForId:@(controllerId) reject:reject];
   if (!controller) {
     return;
   }
@@ -155,7 +155,7 @@
 - (void)shortControllerRelease:(double)controllerId
                         resolve:(RCTPromiseResolveBlock)resolve
                          reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortController *controller = [self controllerForId:@(controllerId) reject:reject];
+  RNShortController *controller = [self controllerForId:@(controllerId) reject:reject];
   if (!controller) {
     return;
   }
@@ -167,11 +167,11 @@
                     source:(NSDictionary *)source
                    resolve:(RCTPromiseResolveBlock)resolve
                     reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
+  RNShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
   if (!view) {
     return;
   }
-  TUIPlayerVideoModel *model = [FTUITransformer videoModelFromDictionary:source ?: @{}];
+  TUIPlayerVideoModel *model = [RNTransformer videoModelFromDictionary:source ?: @{}];
   [view.vodController startPlayWithModel:model];
   resolve(nil);
 }
@@ -179,7 +179,7 @@
 - (void)vodPlayerPause:(double)viewTag
                resolve:(RCTPromiseResolveBlock)resolve
                 reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
+  RNShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
   if (!view) {
     return;
   }
@@ -190,7 +190,7 @@
 - (void)vodPlayerResume:(double)viewTag
                 resolve:(RCTPromiseResolveBlock)resolve
                  reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
+  RNShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
   if (!view) {
     return;
   }
@@ -202,7 +202,7 @@
                     rate:(double)rate
                  resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
+  RNShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
   if (!view) {
     return;
   }
@@ -214,7 +214,7 @@
                    mute:(BOOL)mute
                 resolve:(RCTPromiseResolveBlock)resolve
                  reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
+  RNShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
   if (!view) {
     return;
   }
@@ -226,7 +226,7 @@
                    time:(double)time
                 resolve:(RCTPromiseResolveBlock)resolve
                  reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
+  RNShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
   if (!view) {
     return;
   }
@@ -239,7 +239,7 @@
                               key:(id)key
                          resolve:(RCTPromiseResolveBlock)resolve
                           reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
+  RNShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
   if (!view) {
     return;
   }
@@ -250,7 +250,7 @@
 - (void)vodPlayerGetDuration:(double)viewTag
                      resolve:(RCTPromiseResolveBlock)resolve
                       reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
+  RNShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
   if (!view) {
     return;
   }
@@ -260,7 +260,7 @@
 - (void)vodPlayerGetCurrentPlayTime:(double)viewTag
                             resolve:(RCTPromiseResolveBlock)resolve
                              reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
+  RNShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
   if (!view) {
     return;
   }
@@ -270,7 +270,7 @@
 - (void)vodPlayerIsPlaying:(double)viewTag
                    resolve:(RCTPromiseResolveBlock)resolve
                     reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
+  RNShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
   if (!view) {
     return;
   }
@@ -280,7 +280,7 @@
 - (void)vodPlayerRelease:(double)viewTag
                  resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
+  RNShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
   if (!view) {
     return;
   }
@@ -295,9 +295,9 @@
 - (void)removeListeners:(double)count {
 }
 
-- (FTUIShortController *)controllerForId:(NSNumber *)controllerId
+- (RNShortController *)controllerForId:(NSNumber *)controllerId
                                   reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortController *controller = [self.shortEngine controllerForId:controllerId];
+  RNShortController *controller = [self.shortEngine controllerForId:controllerId];
   if (!controller && reject) {
     reject(@"E_NO_CONTROLLER",
            [NSString stringWithFormat:@"Controller %@ not found", controllerId],
@@ -306,9 +306,9 @@
   return controller;
 }
 
-- (FTUIShortVideoView *)videoViewForTag:(NSNumber *)tag
+- (RNShortVideoView *)videoViewForTag:(NSNumber *)tag
                                  reject:(RCTPromiseRejectBlock)reject {
-  FTUIShortVideoView *view = [FTUIViewRegistry viewForTag:tag];
+  RNShortVideoView *view = [RNViewRegistry viewForTag:tag];
   if (!view && reject) {
     reject(@"E_NO_VIEW", [NSString stringWithFormat:@"View %@ not found", tag], nil);
   }

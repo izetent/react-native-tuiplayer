@@ -12,14 +12,14 @@ import {
   TXVodPlayEvent,
 } from './types';
 import type {
-  FTUIVideoSource,
-  FTUIVodControlListener,
-  FTUIVodEvent,
+  RNVideoSource,
+  RNVodControlListener,
+  RNVodEvent,
 } from './types';
 
 type PlayEventPayload = {
   viewTag: number;
-  event: FTUIVodEvent;
+  event: RNVodEvent;
 };
 
 type ControllerEventPayload = {
@@ -30,7 +30,7 @@ const controllerCache = new Map<number, TUIVodPlayerController>();
 
 export class TUIVodPlayerController {
   private subscriptions: EmitterSubscription[] = [];
-  private listeners: Set<FTUIVodControlListener> = new Set();
+  private listeners: Set<RNVodControlListener> = new Set();
   playerState: TUIPlayerState = TUIPlayerState.INIT;
 
   constructor(private readonly viewTag: number) {
@@ -104,11 +104,11 @@ export class TUIVodPlayerController {
     this.playerState = state;
   }
 
-  addListener(listener: FTUIVodControlListener) {
+  addListener(listener: RNVodControlListener) {
     this.listeners.add(listener);
   }
 
-  removeListener(listener: FTUIVodControlListener) {
+  removeListener(listener: RNVodControlListener) {
     this.listeners.delete(listener);
   }
 
@@ -116,7 +116,7 @@ export class TUIVodPlayerController {
     this.listeners.clear();
   }
 
-  async startPlay(source: FTUIVideoSource) {
+  async startPlay(source: RNVideoSource) {
     await NativeTxplayer.vodPlayerStartPlay(
       this.viewTag,
       serializeVideoSource(source)
