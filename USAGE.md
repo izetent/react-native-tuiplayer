@@ -147,6 +147,14 @@ export default function FeedPlayer() {
 | `pSign` | 私有 DRM 播放授权 |
 | `isAutoPlay` | 默认 `true` |
 | `extInfo` | 透传字典到 native 层 |
+| `subtitleSources` | 外挂字幕数组，元素包含 `url`、`mimeType`、`name?`（Premium SDK 才支持） |
+
+### 外挂字幕
+
+1. 在 `RNVideoSource` 中配置 `subtitleSources`。
+2. 在 UI 层监听 `TUIVodPlayerController.addListener` 并实现 `onSubtitleTracksUpdate`，可以拿到 `trackIndex`/`name` 等信息。
+3. 调用 `controller.selectSubtitleTrack(trackIndex)` 选择对应字幕；传入 `-1` 可隐藏字幕。
+4. Android 端会在 `TXSubtitleView` 中渲染字幕；iOS 暂时只暴露 API，需等待后续 SDK 能力。
 
 ## 5. 事件与调试
 

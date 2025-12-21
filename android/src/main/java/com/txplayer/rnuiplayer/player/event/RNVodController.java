@@ -7,6 +7,7 @@ import androidx.annotation.Nullable;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ReactContext;
+import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
 import com.tencent.qcloud.tuiplayer.core.api.TUIPlayerController;
 import com.tencent.qcloud.tuiplayer.core.api.model.TUIFileVideoInfo;
@@ -22,6 +23,7 @@ import com.txplayer.rnuiplayer.common.TxplayerEventDispatcher;
 import com.txplayer.rnuiplayer.tools.RNUtils;
 import com.txplayer.rnuiplayer.view.RNShortVideoItemView;
 import com.tencent.rtmp.TXTrackInfo;
+import com.tencent.rtmp.ui.TXSubtitleView;
 
 import java.util.List;
 import java.util.Map;
@@ -67,6 +69,7 @@ public class RNVodController
   @Override
   public void onPlayerControllerUnBind(TUIPlayerController playerController) {
     controller = null;
+    parentView.hideSubtitleLayer();
     emitEvent(RNConstant.EVENT_CONTROLLER_UNBIND, null);
   }
 
@@ -202,7 +205,20 @@ public class RNVodController
   public void onRcvTrackInformation(List<TXTrackInfo> list) {}
 
   @Override
-  public void onRcvSubTitleTrackInformation(List<TXTrackInfo> list) {}
+  public void onRcvSubTitleTrackInformation(List<TXTrackInfo> list) {
+    if (controller == null || controller.getPlayer() == null || list == null || list.isEmpty()) {
+      parentView.hideSubtitleLayer();
+      return;
+    }
+    if (controller.getPlayer() instanceof ITUIVodPlayer) {
+      ITUIVodPlayer player = (ITUIVodPlayer) controller.getPlayer();
+      TXSubtitleView subtitleView = parentView.getSubtitleView();
+      player.setSubtitleView(subtitleView);
+      player.selectTrack(list.get(0).trackIndex);
+      parentView.showSubtitleLayer();
+      emitSubtitleTracks(list);
+    }
+  }
 
   @Override
   public void onRecFileVideoInfo(TUIFileVideoInfo tuiFileVideoInfo) {}
@@ -228,4 +244,44 @@ public class RNVodController
 
   @Override
   public void onPlayStop() {}
+
+  public void selectSubtitleTrack(int trackIndex) {
+    if (controller == null || controller.getPlayer() == null) {
+      return;
+    }
+    if (!(controller.getPlayer() instanceof ITUIVodPlayer)) {
+      return;
+    }
+    ITUIVodPlayer player = (ITUIVodPlayer) controller.getPlayer();
+    if (trackIndex < 0) {
+      player.setSubtitleView(null);
+      parentView.hideSubtitleLayer();
+    } else {
+      TXSubtitleView subtitleView = parentView.getSubtitleView();
+      player.setSubtitleView(subtitleView);
+      player.selectTrack(trackIndex);
+      parentView.showSubtitleLayer();
+    }
+  }
+
+  private void emitSubtitleTracks(List<TXTrackInfo> tracks) {
+    WritableMap params = TxplayerEventDispatcher.createParams();
+    params.putInt("viewTag", getViewTag());
+    WritableArray trackArray = Arguments.createArray();
+    for (TXTrackInfo info : tracks) {
+      WritableMap trackMap = Arguments.createMap();
+      trackMap.putInt("trackIndex", info.trackIndex);
+      if (info.language != null) {
+        trackMap.putString("language", info.language);
+      }
+      String trackName = info.getName();
+      if (trackName != null) {
+        trackMap.putString("name", trackName);
+      }
+      trackMap.putInt("type", info.trackType);
+      trackArray.pushMap(trackMap);
+    }
+    params.putArray("tracks", trackArray);
+    TxplayerEventDispatcher.emit(RNConstant.EVENT_SUBTITLE_TRACKS, params);
+  }
 }

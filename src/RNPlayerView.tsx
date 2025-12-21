@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import { forwardRef } from 'react';
 import type { ViewProps } from 'react-native';
 import { requireNativeComponent } from 'react-native';
 
@@ -11,10 +11,8 @@ const NativeRNPlayerView =
 
 export type RNPlayerViewProps = NativeProps;
 
-export const RNPlayerView = forwardRef<any, RNPlayerViewProps>(
-  (props, ref) => {
-    return <NativeRNPlayerView {...props} ref={ref} />;
-  }
-);
+export const RNPlayerView = forwardRef<any, RNPlayerViewProps>((props, ref) => {
+  return <NativeRNPlayerView {...props} ref={ref} />;
+});
 
 RNPlayerView.displayName = 'RNPlayerView';

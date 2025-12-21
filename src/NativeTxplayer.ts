@@ -14,6 +14,13 @@ export type NativeVodSource = {
   pSign?: string;
   isAutoPlay?: boolean;
   extInfo?: { [key: string]: unknown } | null;
+  subtitleSources?: NativeSubtitleSource[] | null;
+};
+
+export type NativeSubtitleSource = {
+  url: string;
+  mimeType: string;
+  name?: string;
 };
 
 export type NativeVodStrategy = {
@@ -74,6 +81,7 @@ export interface Spec extends TurboModule {
     value: string,
     key: unknown
   ): Promise<void>;
+  vodPlayerSelectSubtitle(viewTag: number, trackIndex: number): Promise<void>;
   vodPlayerGetDuration(viewTag: number): Promise<number>;
   vodPlayerGetCurrentPlayTime(viewTag: number): Promise<number>;
   vodPlayerIsPlaying(viewTag: number): Promise<boolean>;

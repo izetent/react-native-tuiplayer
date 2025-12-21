@@ -149,9 +149,16 @@ class TxplayerModule(reactContext: ReactApplicationContext) :
     }
   }
 
-  override fun vodPlayerSetStringOption(viewTag: Double, value: String, key: Any?, promise: Promise) {
+  override fun vodPlayerSetStringOption(viewTag: Double, value: String, key: ReadableMap, promise: Promise) {
     withPlayer(viewTag, promise) { view ->
       view.vodController.setStringOption(value, normalizeDynamic(key))
+      promise.resolve(null)
+    }
+  }
+
+  override fun vodPlayerSelectSubtitle(viewTag: Double, trackIndex: Double, promise: Promise) {
+    withPlayer(viewTag, promise) { view ->
+      view.vodController.selectSubtitleTrack(trackIndex.toInt())
       promise.resolve(null)
     }
   }

@@ -8,6 +8,7 @@ public final class RNConstant {
   public static final String EVENT_CONTROLLER_BIND = "txplayer.onControllerBind";
   public static final String EVENT_CONTROLLER_UNBIND = "txplayer.onControllerUnbind";
   public static final String EVENT_VIEW_DISPOSED = "txplayer.onViewDisposed";
+  public static final String EVENT_SUBTITLE_TRACKS = "txplayer.onSubtitleTracks";
 
   public static final int PLAY_EVT_FIRST_FRAME_RENDERED = 50001;
 

@@ -1,7 +1,7 @@
 {
   "name": "react-native-txplayer",
-  "version": "0.1.0",
-  "description": "tui",
+  "version": "2.0.0",
+  "description": "React Native bridge for TUIPlayer Kit short video components.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
   "exports": {
@@ -47,14 +47,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Mahuoooo/react-native-txplayer.git"
+    "url": "git+https://github.com/izetent/react-native-txplayer.git"
   },
-  "author": "izetent <izetent@gmail.com> (https://github.com/Mahuoooo)",
+  "author": "izetent <izetent@gmail.com> (https://github.com/izetent)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/Mahuoooo/react-native-txplayer/issues"
+    "url": "https://github.com/izetent/react-native-txplayer/issues"
   },
-  "homepage": "https://github.com/Mahuoooo/react-native-txplayer#readme",
+  "homepage": "https://github.com/izetent/react-native-txplayer#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },

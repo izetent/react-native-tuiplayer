@@ -22,6 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setStringOptionWithKey:(id)key value:(NSString *)value;
 - (void)releasePlayer;
 - (void)onShortVideoDestroyed;
+- (void)selectSubtitleTrack:(NSInteger)trackIndex;
 
 @end
 

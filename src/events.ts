@@ -5,4 +5,3 @@ import NativeTxplayer from './NativeTxplayer';
 export const TxplayerEventEmitter = new NativeEventEmitter(
   NativeTxplayer as any
 );
-

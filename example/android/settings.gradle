@@ -1,6 +1,22 @@
 pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
 plugins { id("com.facebook.react.settings") }
-extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autolinkLibrariesFromCommand() }
+
+def autolinkLockFiles = files(
+  "../yarn.lock",
+  "../package-lock.json",
+  "../package.json",
+  "../react-native.config.js",
+  "app/build.gradle",
+  "app/src/main/AndroidManifest.xml"
+)
+
+def autolinkCommand = ["npx", "@react-native-community/cli", "config"]
+def autolinkWorkingDir = file("..")
+
+extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
+  ex.autolinkLibrariesFromCommand(autolinkCommand, autolinkWorkingDir, autolinkLockFiles)
+}
+
 rootProject.name = 'txplayer.example'
 include ':app'
 includeBuild('../node_modules/@react-native/gradle-plugin')

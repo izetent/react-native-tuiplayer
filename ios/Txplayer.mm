@@ -247,6 +247,22 @@
   resolve(nil);
 }
 
+- (void)vodPlayerSelectSubtitle:(double)viewTag
+                     trackIndex:(double)trackIndex
+                        resolve:(RCTPromiseResolveBlock)resolve
+                         reject:(RCTPromiseRejectBlock)reject {
+  RNShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
+  if (!view) {
+    return;
+  }
+  if ([view.vodController respondsToSelector:@selector(selectSubtitleTrack:)]) {
+    [view.vodController selectSubtitleTrack:(NSInteger)trackIndex];
+    resolve(nil);
+    return;
+  }
+  reject(@"E_SUBTITLE_UNSUPPORTED", @"Subtitle selection is not supported on this platform", nil);
+}
+
 - (void)vodPlayerGetDuration:(double)viewTag
                      resolve:(RCTPromiseResolveBlock)resolve
                       reject:(RCTPromiseRejectBlock)reject {

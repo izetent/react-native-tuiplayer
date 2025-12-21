@@ -1,4 +1,4 @@
-package txplayer.example
+package com.zapcliphd
 
 import android.app.Application
 import com.facebook.react.PackageList

@@ -10,7 +10,6 @@ import com.tencent.qcloud.tuiplayer.core.api.TUIPlayerBridge;
 import com.tencent.qcloud.tuiplayer.core.api.TUIPlayerManager;
 import com.tencent.qcloud.tuiplayer.core.api.TUIPlayerVodStrategy;
 import com.tencent.qcloud.tuiplayer.core.api.model.TUIPlaySource;
-import com.tencent.qcloud.tuiplayer.core.api.model.TUIPlayerVideoModel;
 import com.tencent.qcloud.tuiplayer.core.api.model.TUIVideoSource;
 import com.tencent.qcloud.tuiplayer.core.api.tools.TUIDataUtils;
 import com.tencent.qcloud.tuiplayer.core.api.ui.player.ITUIVodPlayer;

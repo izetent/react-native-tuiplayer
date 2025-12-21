@@ -87,11 +87,13 @@ Returned by `bindVodPlayer`. Provides on-demand control and events:
 
 ### `RNVideoSource`
 Define one of `videoURL` or `fileId` (with `appId` & optional `pSign`). `coverPictureUrl` is shown before the first frame. `extInfo` allows passing custom metadata down to the native layer.
+`subtitleSources` lets you attach external subtitle tracks. Each track takes `{ url, mimeType, name? }` and requires the Premium LiteAV SDK. When subtitle tracks load, `TUIVodPlayerController` fires `onSubtitleTracksUpdate` so you can call `selectSubtitleTrack(trackIndex)` to switch languages.
 
 ## Notes
 
 - **Licensing:** Without a valid licence `startCurrent()` returns `TUI_ERROR_INVALID_LICENSE`. Configure `licenseUrl` + `licenseKey` before using this package.
 - **Super Resolution:** Call `setMonetAppInfo` first, then toggle `RNPlayerVodStrategy.enableSuperResolution`.  
+- **Subtitles:** Provide `subtitleSources` in every `RNVideoSource` that needs subtitles. On Android we render them inside a native `TXSubtitleView`. Use `TUIVodPlayerController.addListener` to react to `onSubtitleTracksUpdate` and call `controller.selectSubtitleTrack(index)` to switch languages or pass `-1` to hide subtitles. (iOS currently exposes the APIs but native subtitles are not yet wired up.)
 - **Platform parity:** The TypeScript surface mimics the Flutter plugin so existing business logic can be ported with minimal changes.
 
 ## Contributing

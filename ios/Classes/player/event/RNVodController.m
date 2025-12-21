@@ -104,6 +104,11 @@
   self.currentPlayer = nil;
 }
 
+- (void)selectSubtitleTrack:(NSInteger)trackIndex {
+  TUILOGW(@"[RNVodController] Subtitle selection is not implemented on iOS (requested index: %ld)",
+          (long)trackIndex);
+}
+
 #pragma mark - TUIPlayerVodManagerDelegate
 
 - (void)currentPlayer:(TUITXVodPlayer *)player {

@@ -3,12 +3,14 @@ import { findNodeHandle } from 'react-native';
 
 import type {
   NativePlayerConfig,
+  NativeSubtitleSource,
   NativeVodSource,
   NativeVodStrategy,
 } from './NativeTxplayer';
 
 export type {
   NativePlayerConfig,
+  NativeSubtitleSource,
   NativeVodSource,
   NativeVodStrategy,
 } from './NativeTxplayer';
@@ -19,11 +21,25 @@ export const EVENT_PLAY_EVENT = 'txplayer.onPlayEvent';
 export const EVENT_CONTROLLER_BIND = 'txplayer.onControllerBind';
 export const EVENT_CONTROLLER_UNBIND = 'txplayer.onControllerUnbind';
 export const EVENT_VIEW_DISPOSED = 'txplayer.onViewDisposed';
+export const EVENT_SUBTITLE_TRACKS = 'txplayer.onSubtitleTracks';
 
 export interface RNPlayerConfig {
   licenseUrl: string;
   licenseKey: string;
   enableLog?: boolean;
+}
+
+export interface RNSubtitleSource {
+  url: string;
+  mimeType: string;
+  name?: string;
+}
+
+export interface RNSubtitleTrackInfo {
+  trackIndex: number;
+  name?: string;
+  language?: string;
+  type?: number;
 }
 
 export interface RNVideoSource {
@@ -34,6 +50,7 @@ export interface RNVideoSource {
   pSign?: string;
   isAutoPlay?: boolean;
   extInfo?: Record<string, unknown> | null;
+  subtitleSources?: RNSubtitleSource[] | null;
 }
 
 export interface RNPlayerVodStrategy {
@@ -63,6 +80,7 @@ export interface RNVodControlListener {
   onVodControllerBind?: () => void;
   onVodControllerUnBind?: () => void;
   onVodPlayerEvent?: (event: RNVodEvent) => void;
+  onSubtitleTracksUpdate?: (tracks: RNSubtitleTrackInfo[]) => void;
 }
 
 export enum TUIPlayerState {
@@ -164,7 +182,9 @@ const DEFAULT_VOD_STRATEGY: NativeVodStrategy = {
   enableSuperResolution: false,
 };
 
-export function serializePlayerConfig(config: RNPlayerConfig): NativePlayerConfig {
+export function serializePlayerConfig(
+  config: RNPlayerConfig
+): NativePlayerConfig {
   return {
     licenseUrl: config.licenseUrl,
     licenseKey: config.licenseKey,
@@ -181,14 +201,38 @@ export function serializeVideoSource(source: RNVideoSource): NativeVodSource {
     pSign: source.pSign,
     isAutoPlay: source.isAutoPlay ?? true,
     extInfo: source.extInfo ?? null,
+    subtitleSources: serializeSubtitleSources(source.subtitleSources),
   };
 }
 
-export function serializeVideoSources(sources: RNVideoSource[]): NativeVodSource[] {
+function serializeSubtitleSources(
+  sources?: RNSubtitleSource[] | null
+): NativeSubtitleSource[] | null {
+  if (!sources || sources.length === 0) {
+    return null;
+  }
+  return sources.map(serializeSubtitleSource);
+}
+
+function serializeSubtitleSource(
+  source: RNSubtitleSource
+): NativeSubtitleSource {
+  return {
+    url: source.url,
+    mimeType: source.mimeType,
+    name: source.name,
+  };
+}
+
+export function serializeVideoSources(
+  sources: RNVideoSource[]
+): NativeVodSource[] {
   return sources.map(serializeVideoSource);
 }
 
-export function serializeVodStrategy(strategy?: RNPlayerVodStrategy): NativeVodStrategy {
+export function serializeVodStrategy(
+  strategy?: RNPlayerVodStrategy
+): NativeVodStrategy {
   return {
     ...DEFAULT_VOD_STRATEGY,
     ...(strategy ?? {}),

@@ -8,8 +8,10 @@ import com.facebook.react.bridge.ReadableType;
 import com.tencent.qcloud.tuiplayer.core.TUIPlayerConfig;
 import com.tencent.qcloud.tuiplayer.core.api.TUIPlayerVodStrategy;
 import com.tencent.qcloud.tuiplayer.core.api.common.TUIConstants;
+import com.tencent.qcloud.tuiplayer.core.api.model.TUISubtitleSource;
 import com.tencent.qcloud.tuiplayer.core.api.model.TUIVideoSource;
 
+import java.util.ArrayList;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -67,6 +69,38 @@ public final class RNTransformer {
         source.setExtInfoAndNotify(ext.toHashMap());
       }
     }
+    if (map.hasKey("subtitleSources") && map.getType("subtitleSources") != ReadableType.Null) {
+      ReadableArray subtitles = map.getArray("subtitleSources");
+      if (subtitles != null && subtitles.size() > 0) {
+        List<TUISubtitleSource> subtitleSources = new ArrayList<>();
+        for (int i = 0; i < subtitles.size(); i++) {
+          ReadableMap subtitleMap = subtitles.getMap(i);
+          if (subtitleMap == null) {
+            continue;
+          }
+          if (!subtitleMap.hasKey("url") || subtitleMap.getType("url") == ReadableType.Null) {
+            continue;
+          }
+          String url = subtitleMap.getString("url");
+          if (url == null || url.isEmpty()) {
+            continue;
+          }
+          String mimeType =
+              subtitleMap.hasKey("mimeType") && subtitleMap.getType("mimeType") != ReadableType.Null
+                  ? subtitleMap.getString("mimeType")
+                  : "";
+          String name =
+              subtitleMap.hasKey("name") && subtitleMap.getType("name") != ReadableType.Null
+                  ? subtitleMap.getString("name")
+                  : "";
+          TUISubtitleSource subtitleSource = new TUISubtitleSource(url, name, mimeType);
+          subtitleSources.add(subtitleSource);
+        }
+        if (!subtitleSources.isEmpty()) {
+          source.setExternalSubtitle(subtitleSources);
+        }
+      }
+    }
     return source;
   }
 
@@ -86,7 +120,7 @@ public final class RNTransformer {
         builder.setMaxBufferSize((float) map.getDouble("maxBufferSize"));
       }
       if (map.hasKey("preferredResolution") && map.getType("preferredResolution") != ReadableType.Null) {
-        builder.setPreferredResolution(map.getDouble("preferredResolution"));
+        builder.setPreferredResolution(Math.round(map.getDouble("preferredResolution")));
       }
       if (map.hasKey("progressInterval") && map.getType("progressInterval") != ReadableType.Null) {
         builder.setProgressInterval(map.getInt("progressInterval"));

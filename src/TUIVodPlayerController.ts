@@ -7,12 +7,14 @@ import {
   EVENT_CONTROLLER_UNBIND,
   EVENT_PLAY_EVENT,
   EVENT_VIEW_DISPOSED,
+  EVENT_SUBTITLE_TRACKS,
   serializeVideoSource,
   TUIPlayerState,
   TXVodPlayEvent,
 } from './types';
 import type {
   RNVideoSource,
+  RNSubtitleTrackInfo,
   RNVodControlListener,
   RNVodEvent,
 } from './types';
@@ -26,7 +28,45 @@ type ControllerEventPayload = {
   viewTag: number;
 };
 
+type SubtitleEventPayload = {
+  viewTag: number;
+  tracks?: RNSubtitleTrackInfo[];
+};
+
 const controllerCache = new Map<number, TUIVodPlayerController>();
+
+function hasViewTag(payload: unknown): payload is { viewTag: number } {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    typeof (payload as { viewTag?: unknown }).viewTag === 'number'
+  );
+}
+
+function toPlayEventPayload(payload: unknown): PlayEventPayload | null {
+  if (!hasViewTag(payload)) {
+    return null;
+  }
+  const event = (payload as PlayEventPayload).event;
+  return { viewTag: payload.viewTag, event: event ?? {} };
+}
+
+function toControllerEventPayload(
+  payload: unknown
+): ControllerEventPayload | null {
+  if (!hasViewTag(payload)) {
+    return null;
+  }
+  return { viewTag: payload.viewTag };
+}
+
+function toSubtitleEventPayload(payload: unknown): SubtitleEventPayload | null {
+  if (!hasViewTag(payload)) {
+    return null;
+  }
+  const tracks = (payload as SubtitleEventPayload).tracks;
+  return { viewTag: payload.viewTag, tracks };
+}
 
 export class TUIVodPlayerController {
   private subscriptions: EmitterSubscription[] = [];
@@ -35,10 +75,7 @@ export class TUIVodPlayerController {
 
   constructor(private readonly viewTag: number) {
     this.subscriptions = [
-      TxplayerEventEmitter.addListener(
-        EVENT_PLAY_EVENT,
-        this.handlePlayEvent
-      ),
+      TxplayerEventEmitter.addListener(EVENT_PLAY_EVENT, this.handlePlayEvent),
       TxplayerEventEmitter.addListener(
         EVENT_CONTROLLER_BIND,
         this.handleBindEvent
@@ -47,16 +84,22 @@ export class TUIVodPlayerController {
         EVENT_CONTROLLER_UNBIND,
         this.handleUnBindEvent
       ),
+      TxplayerEventEmitter.addListener(
+        EVENT_SUBTITLE_TRACKS,
+        this.handleSubtitleTracks
+      ),
     ];
   }
 
-  private handlePlayEvent = (payload: PlayEventPayload) => {
-    if (payload.viewTag !== this.viewTag) {
+  private handlePlayEvent = (rawPayload: unknown) => {
+    const payload = toPlayEventPayload(rawPayload);
+    if (!payload || payload.viewTag !== this.viewTag) {
       return;
     }
     const event = payload.event ?? {};
     const eventCodeRaw = event[TXVodPlayEvent.EVT_EVENT] ?? event.event;
-    const eventCode = typeof eventCodeRaw === 'number' ? eventCodeRaw : Number(eventCodeRaw);
+    const eventCode =
+      typeof eventCodeRaw === 'number' ? eventCodeRaw : Number(eventCodeRaw);
     if (!Number.isFinite(eventCode)) {
       return;
     }
@@ -81,20 +124,20 @@ export class TUIVodPlayerController {
       default:
         break;
     }
-    this.listeners.forEach((listener) =>
-      listener.onVodPlayerEvent?.(event)
-    );
+    this.listeners.forEach((listener) => listener.onVodPlayerEvent?.(event));
   };
 
-  private handleBindEvent = (payload: ControllerEventPayload) => {
-    if (payload.viewTag !== this.viewTag) {
+  private handleBindEvent = (rawPayload: unknown) => {
+    const payload = toControllerEventPayload(rawPayload);
+    if (!payload || payload.viewTag !== this.viewTag) {
       return;
     }
     this.listeners.forEach((listener) => listener.onVodControllerBind?.());
   };
 
-  private handleUnBindEvent = (payload: ControllerEventPayload) => {
-    if (payload.viewTag !== this.viewTag) {
+  private handleUnBindEvent = (rawPayload: unknown) => {
+    const payload = toControllerEventPayload(rawPayload);
+    if (!payload || payload.viewTag !== this.viewTag) {
       return;
     }
     this.listeners.forEach((listener) => listener.onVodControllerUnBind?.());
@@ -103,6 +146,33 @@ export class TUIVodPlayerController {
   private updatePlayerState(state: TUIPlayerState) {
     this.playerState = state;
   }
+
+  private handleSubtitleTracks = (rawPayload: unknown) => {
+    const payload = toSubtitleEventPayload(rawPayload);
+    if (!payload || payload.viewTag !== this.viewTag) {
+      return;
+    }
+    const tracks = (payload.tracks ?? [])
+      .map((track) => ({
+        trackIndex: Number(track.trackIndex),
+        name:
+          typeof track.name === 'string' && track.name.length > 0
+            ? track.name
+            : undefined,
+        language:
+          typeof track.language === 'string' && track.language.length > 0
+            ? track.language
+            : undefined,
+        type:
+          typeof track.type === 'number' && Number.isFinite(track.type)
+            ? track.type
+            : undefined,
+      }))
+      .filter((track) => Number.isFinite(track.trackIndex));
+    this.listeners.forEach((listener) =>
+      listener.onSubtitleTracksUpdate?.(tracks)
+    );
+  };
 
   addListener(listener: RNVodControlListener) {
     this.listeners.add(listener);
@@ -149,6 +219,10 @@ export class TUIVodPlayerController {
     await NativeTxplayer.vodPlayerSetStringOption(this.viewTag, value, key);
   }
 
+  async selectSubtitleTrack(trackIndex: number) {
+    await NativeTxplayer.vodPlayerSelectSubtitle(this.viewTag, trackIndex);
+  }
+
   getDuration() {
     return NativeTxplayer.vodPlayerGetDuration(this.viewTag);
   }
@@ -174,16 +248,17 @@ export class TUIVodPlayerController {
   }
 }
 
-TxplayerEventEmitter.addListener(
-  EVENT_VIEW_DISPOSED,
-  (payload: ControllerEventPayload) => {
-    const controller = controllerCache.get(payload.viewTag);
-    if (controller) {
-      controller.dispose();
-      controllerCache.delete(payload.viewTag);
-    }
+TxplayerEventEmitter.addListener(EVENT_VIEW_DISPOSED, (payload: unknown) => {
+  const data = toControllerEventPayload(payload);
+  if (!data) {
+    return;
   }
-);
+  const controller = controllerCache.get(data.viewTag);
+  if (controller) {
+    controller.dispose();
+    controllerCache.delete(data.viewTag);
+  }
+});
 
 export function getOrCreateVodController(
   viewTag: number
