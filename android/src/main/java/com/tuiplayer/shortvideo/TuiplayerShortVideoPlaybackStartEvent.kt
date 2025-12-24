@@ -20,7 +20,7 @@ internal class TuiplayerShortVideoPlaybackStartEvent(
     return Arguments.createMap().apply {
       putInt("index", index)
       putInt("total", total)
-      source?.let { putMap("source", it) }
+      source?.let { putMap("source", Arguments.makeNativeMap(it.toHashMap())) }
     }
   }
 

@@ -1061,8 +1061,9 @@ internal class TuiplayerShortVideoView(
         val live = existingPlayer?.currentPlaybackTime?.toDouble()
         val cached = resolvedIndex?.let { currentMsByIndex[it]?.toDouble() }
         return when {
-          live != null && live >= 0 -> live
+          live != null && live > 0 -> live
           cached != null && cached >= 0 -> cached
+          live != null && live >= 0 -> live
           else -> 0.0
         }
       }
@@ -2733,7 +2734,7 @@ private fun ReadableMap.toShortVideoSource(): TuiplayerShortVideoSource? {
   } else {
     null
   }
-  val metadata = getMapOrNull("meta")?.toShortVideoMetadata()
+  val metadata = getMapOrNull("meta")?.toShortVideoMetadata(cover)
   val subtitles = getArrayOrNull("subtitles")?.toSubtitleList()
   if (type == TuiplayerShortVideoSource.SourceType.FILE_ID && fileId.isNullOrBlank()) {
     return null
@@ -2845,9 +2846,11 @@ internal fun TuiplayerShortVideoSource.toSnapshotMap(): WritableMap {
   return map
 }
 
-private fun ReadableMap.toShortVideoMetadata(): TuiplayerShortVideoSource.Metadata? {
+private fun ReadableMap.toShortVideoMetadata(
+  coverPictureUrl: String? = null
+): TuiplayerShortVideoSource.Metadata? {
   val name = getStringOrNull("name")
-  val icon = getStringOrNull("icon")
+  val icon = coverPictureUrl
   val type = getTagList("type")
   val details = getStringOrNull("details")
   val showCover = getBooleanOrNull("showCover")

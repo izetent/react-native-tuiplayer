@@ -331,7 +331,7 @@ private fun ReadableMap.toSource(): TuiplayerShortVideoSource {
   } else {
     null
   }
-  val metadata = getMapOrNull("meta")?.toShortVideoMetadata()
+  val metadata = getMapOrNull("meta")?.toShortVideoMetadata(cover)
   val subtitles = getArrayOrNull("subtitles")?.toSubtitleList()
 
   return TuiplayerShortVideoSource(
@@ -364,9 +364,11 @@ private fun ReadableArray?.toSubtitleList(): List<TuiplayerShortVideoSource.Subt
   return result
 }
 
-private fun ReadableMap.toShortVideoMetadata(): TuiplayerShortVideoSource.Metadata? {
+private fun ReadableMap.toShortVideoMetadata(
+  coverPictureUrl: String? = null
+): TuiplayerShortVideoSource.Metadata? {
   val name = getStringOrNull("name")
-  val icon = getStringOrNull("icon")
+  val icon = coverPictureUrl
   val type = getTagList("type")
   val details = getStringOrNull("details")
   val showCover = getBooleanOrNull("showCover")

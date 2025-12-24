@@ -551,7 +551,7 @@ internal class TuiplayerInfoLayer : TUIVodLayer(), TuiplayerHostAwareLayer {
     }
 
     // Episode Cover (icon)
-    val episodeCoverUrl = metadata.icon
+    val episodeCoverUrl = source?.coverPictureUrl
     val videoView = videoView
     val target = albumArtView
     val shouldShowCover = metadata.showCover != false

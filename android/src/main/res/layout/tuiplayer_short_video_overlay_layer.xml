@@ -49,8 +49,8 @@
                     <!-- Album Art Placeholder -->
                     <ImageView
                         android:id="@+id/tuiplayer_overlay_album_art"
-                        android:layout_width="36dp"
-                        android:layout_height="64dp"
+                        android:layout_width="40dp"
+                        android:layout_height="60dp"
                         android:scaleType="centerCrop"
                         android:background="@drawable/tui_overlay_album_art_bg"
                         android:clipToOutline="true"
