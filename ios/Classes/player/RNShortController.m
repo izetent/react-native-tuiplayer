@@ -251,6 +251,28 @@
     }
 }
 
+- (void)switchResolution:(long)resolution switchType:(NSInteger)switchType {
+    [self.vodStrategyManager setPreferredResolution:resolution];
+    TUITXVodPlayer *player = self.vodManager.currentVodPlayer;
+    if (player == nil) {
+        return;
+    }
+    NSArray<TUIPlayerBitrateItem *> *bitrates = [player supportedBitrates];
+    NSInteger targetIndex = -1;
+    for (TUIPlayerBitrateItem *item in bitrates) {
+        if (item.width * item.height == resolution) {
+            targetIndex = item.index;
+            break;
+        }
+    }
+    if (targetIndex < 0 && bitrates.count > 0) {
+        targetIndex = bitrates.firstObject.index;
+    }
+    if (targetIndex >= 0) {
+        [player setBitrateIndex:targetIndex];
+    }
+}
+
 - (TUIPlayerRecordManager*)recordManager {
     if (self->_recordManager == nil) {
         self->_recordManager = [[TUIPlayerRecordManager alloc] init];

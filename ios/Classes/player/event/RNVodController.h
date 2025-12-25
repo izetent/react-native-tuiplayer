@@ -16,6 +16,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setRate:(double)rate;
 - (void)setMute:(BOOL)mute;
 - (void)seekToTime:(double)time;
+- (NSArray<TUIPlayerBitrateItem *> *)getSupportResolution;
+- (void)switchResolution:(long)resolution switchType:(NSInteger)switchType;
+- (void)setMirror:(BOOL)isMirror;
 - (NSNumber *)duration;
 - (NSNumber *)currentPlayTime;
 - (NSNumber *)isPlaying;

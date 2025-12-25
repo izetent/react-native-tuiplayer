@@ -63,6 +63,10 @@ public class RNShortController implements TUIPlayerBridge {
     this.isLoop = loop;
   }
 
+  public boolean switchResolution(long resolution, int switchType) {
+    return manager.switchResolution(resolution, switchType);
+  }
+
   public void release() {
     TUIPlayerLog.i(TAG, "release controller " + controllerId);
     manager.releasePlayers();

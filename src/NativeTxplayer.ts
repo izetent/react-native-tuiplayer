@@ -34,6 +34,13 @@ export type NativeVodStrategy = {
   enableSuperResolution: boolean;
 };
 
+export type NativeBitrateItem = {
+  index: number;
+  width: number;
+  height: number;
+  bitrate: number;
+};
+
 export interface Spec extends TurboModule {
   setPlayerConfig(config: NativePlayerConfig): Promise<void>;
   setMonetAppInfo(
@@ -69,6 +76,11 @@ export interface Spec extends TurboModule {
     controllerId: number,
     isLoop: boolean
   ): Promise<void>;
+  shortControllerSwitchResolution(
+    controllerId: number,
+    resolution: number,
+    switchType: number
+  ): Promise<void>;
   shortControllerRelease(controllerId: number): Promise<void>;
   vodPlayerStartPlay(viewTag: number, source: NativeVodSource): Promise<void>;
   vodPlayerPause(viewTag: number): Promise<void>;
@@ -76,6 +88,12 @@ export interface Spec extends TurboModule {
   vodPlayerSetRate(viewTag: number, rate: number): Promise<void>;
   vodPlayerSetMute(viewTag: number, mute: boolean): Promise<void>;
   vodPlayerSeekTo(viewTag: number, time: number): Promise<void>;
+  vodPlayerSwitchResolution(
+    viewTag: number,
+    resolution: number,
+    switchType: number
+  ): Promise<void>;
+  vodPlayerGetSupportResolution(viewTag: number): Promise<NativeBitrateItem[]>;
   vodPlayerSetStringOption(
     viewTag: number,
     value: string,
@@ -84,6 +102,7 @@ export interface Spec extends TurboModule {
   vodPlayerSelectSubtitle(viewTag: number, trackIndex: number): Promise<void>;
   vodPlayerGetDuration(viewTag: number): Promise<number>;
   vodPlayerGetCurrentPlayTime(viewTag: number): Promise<number>;
+  vodPlayerSetMirror(viewTag: number, mirror: boolean): Promise<void>;
   vodPlayerIsPlaying(viewTag: number): Promise<boolean>;
   vodPlayerRelease(viewTag: number): Promise<void>;
   addListener?(eventName: string): void;

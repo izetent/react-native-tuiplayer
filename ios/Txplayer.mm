@@ -152,6 +152,19 @@
   resolve(nil);
 }
 
+- (void)shortControllerSwitchResolution:(double)controllerId
+                              resolution:(double)resolution
+                              switchType:(double)switchType
+                                 resolve:(RCTPromiseResolveBlock)resolve
+                                  reject:(RCTPromiseRejectBlock)reject {
+  RNShortController *controller = [self controllerForId:@(controllerId) reject:reject];
+  if (!controller) {
+    return;
+  }
+  [controller switchResolution:(long)resolution switchType:(NSInteger)switchType];
+  resolve(nil);
+}
+
 - (void)shortControllerRelease:(double)controllerId
                         resolve:(RCTPromiseResolveBlock)resolve
                          reject:(RCTPromiseRejectBlock)reject {
@@ -231,6 +244,51 @@
     return;
   }
   [view.vodController seekToTime:time];
+  resolve(nil);
+}
+
+- (void)vodPlayerSwitchResolution:(double)viewTag
+                       resolution:(double)resolution
+                       switchType:(double)switchType
+                          resolve:(RCTPromiseResolveBlock)resolve
+                           reject:(RCTPromiseRejectBlock)reject {
+  RNShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
+  if (!view) {
+    return;
+  }
+  [view.vodController switchResolution:(long)resolution switchType:(NSInteger)switchType];
+  resolve(nil);
+}
+
+- (void)vodPlayerGetSupportResolution:(double)viewTag
+                              resolve:(RCTPromiseResolveBlock)resolve
+                               reject:(RCTPromiseRejectBlock)reject {
+  RNShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
+  if (!view) {
+    return;
+  }
+  NSArray<TUIPlayerBitrateItem *> *bitrates = [view.vodController getSupportResolution];
+  NSMutableArray *result = [NSMutableArray arrayWithCapacity:bitrates.count];
+  for (TUIPlayerBitrateItem *item in bitrates) {
+    [result addObject:@{
+      @"index" : @(item.index),
+      @"width" : @(item.width),
+      @"height" : @(item.height),
+      @"bitrate" : @(item.bitrate)
+    }];
+  }
+  resolve(result);
+}
+
+- (void)vodPlayerSetMirror:(double)viewTag
+                    mirror:(BOOL)mirror
+                   resolve:(RCTPromiseResolveBlock)resolve
+                    reject:(RCTPromiseRejectBlock)reject {
+  RNShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
+  if (!view) {
+    return;
+  }
+  [view.vodController setMirror:mirror];
   resolve(nil);
 }
 

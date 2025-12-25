@@ -1,3 +1,9 @@
+source 'https://github.com/CocoaPods/Specs.git'
+# Tencent Cloud private specs (LiteAV / TUIPlayer)
+source 'https://mirrors.tencent.com/ios/Pods/Specs.git'
+# Fallback if mirror is blocked:
+# source 'https://github.com/tencentyun/ios-pods-tencent.git'
+
 ENV['RCT_NEW_ARCH_ENABLED'] = '1'
 
 # Resolve react_native_pods.rb with node to allow for hoisting

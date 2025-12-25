@@ -71,6 +71,39 @@
   [self.currentPlayer setMute:mute];
 }
 
+- (NSArray<TUIPlayerBitrateItem *> *)getSupportResolution {
+  if (!self.currentPlayer) {
+    return @[];
+  }
+  NSArray<TUIPlayerBitrateItem *> *bitrates = [self.currentPlayer supportedBitrates];
+  return bitrates ?: @[];
+}
+
+- (void)switchResolution:(long)resolution switchType:(NSInteger)switchType {
+  TUITXVodPlayer *player = self.currentPlayer;
+  if (!player) {
+    return;
+  }
+  NSArray<TUIPlayerBitrateItem *> *bitrates = [player supportedBitrates];
+  NSInteger targetIndex = -1;
+  for (TUIPlayerBitrateItem *item in bitrates) {
+    if (item.width * item.height == resolution) {
+      targetIndex = item.index;
+      break;
+    }
+  }
+  if (targetIndex < 0 && bitrates.count > 0) {
+    targetIndex = bitrates.firstObject.index;
+  }
+  if (targetIndex >= 0) {
+    [player setBitrateIndex:targetIndex];
+  }
+}
+
+- (void)setMirror:(BOOL)isMirror {
+  [self.currentPlayer setMirror:isMirror];
+}
+
 - (void)seekToTime:(double)time {
   [self.currentPlayer seekToTime:time];
 }

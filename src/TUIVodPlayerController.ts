@@ -11,12 +11,15 @@ import {
   serializeVideoSource,
   TUIPlayerState,
   TXVodPlayEvent,
+  TUIResolutionType,
 } from './types';
 import type {
   RNVideoSource,
   RNSubtitleTrackInfo,
   RNVodControlListener,
   RNVodEvent,
+  RNPlayerBitrateItem,
+  RNTUIResolutionType,
 } from './types';
 
 type PlayEventPayload = {
@@ -209,6 +212,25 @@ export class TUIVodPlayerController {
 
   async setMute(mute: boolean) {
     await NativeTxplayer.vodPlayerSetMute(this.viewTag, mute);
+  }
+
+  async switchResolution(
+    resolution: number,
+    switchType: RNTUIResolutionType = TUIResolutionType.CURRENT
+  ) {
+    await NativeTxplayer.vodPlayerSwitchResolution(
+      this.viewTag,
+      resolution,
+      switchType
+    );
+  }
+
+  getSupportResolution(): Promise<RNPlayerBitrateItem[]> {
+    return NativeTxplayer.vodPlayerGetSupportResolution(this.viewTag);
+  }
+
+  async setMirror(mirror: boolean) {
+    await NativeTxplayer.vodPlayerSetMirror(this.viewTag, mirror);
   }
 
   async seekTo(time: number) {

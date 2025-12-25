@@ -1,11 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import {
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { useEffect, useRef } from 'react';
+import { SafeAreaView, StyleSheet } from 'react-native';
 import {
   RNPlayerShortController,
   RNPlayerView,
@@ -15,11 +9,11 @@ import {
 import type { RNVideoSource } from 'react-native-txplayer';
 
 const VIDEO_URL =
-  'http://1500005830.vod2.myqcloud.com/43843ec0vodtranscq1500005830/dc455d1d387702306937256938/adp.10.m3u8';
+  'https://gz001-1377187151.cos.ap-guangzhou.myqcloud.com/short1080/S00379-The%20Double%20Life/1.mp4';
 const COVER_URL =
-  'http://1500005830.vod2.myqcloud.com/43843ec0vodtranscq1500005830/dc455d1d387702306937256938/coverBySnapshot_10_0.jpg';
+  'https://gz001-1377187151.cos.ap-guangzhou.myqcloud.com/short1080/S00379-The%20Double%20Life/S00379-The%20Double%20Life.jpg';
 const SUBTITLE_URL =
-  'https://mediacloud-76607.gzc.vod.tencent-cloud.com/DemoResource/TED-CN.srt';
+  'https://cdn.sparktube.top/SRT/S00269-My%20Sister%20Stole%20My%20Man/1_zh.vtt';
 
 const SOURCES: RNVideoSource[] = [
   {
@@ -29,7 +23,7 @@ const SOURCES: RNVideoSource[] = [
       {
         name: 'ex-cn-srt',
         url: SUBTITLE_URL,
-        mimeType: 'application/x-subrip',
+        mimeType: 'text/vtt',
       },
     ],
   },
@@ -39,7 +33,6 @@ export default function App() {
   const viewRef = useRef(null);
   const controllerRef = useRef<RNPlayerShortController>(null);
   const playerControllerRef = useRef<TUIVodPlayerController | null>(null);
-  const [status, setStatus] = useState('Initializing…');
 
   useEffect(() => {
     async function initPlayer() {
@@ -55,11 +48,26 @@ export default function App() {
         await controller.setModels(SOURCES);
         const vodController = await controller.bindVodPlayer(viewRef, 0);
         playerControllerRef.current = vodController;
+        vodController.addListener({
+          // onVodPlayerEvent: (event) =>
+          //   console.log('vod event', event?.event, event),
+          onVodControllerBind: () => console.log('vod controller bind'),
+          onVodControllerUnBind: () => console.log('vod controller unbind'),
+          onSubtitleTracksUpdate: (tracks) =>
+            console.log('subtitle tracks', tracks),
+        });
+        await new Promise((resolve) => setTimeout(resolve, 100));
         const startCode = await controller.startCurrent();
         console.log('startCurrent', startCode);
-        setStatus('Playing sample stream');
+        const playing = await vodController.isPlaying();
+        const source = SOURCES[0];
+        console.log('playing=======', playing, source);
+        if (!playing && source) {
+          await vodController.startPlay(source);
+          console.log('fallback startPlay triggered');
+        }
       } catch (error) {
-        setStatus(`Init failed: ${String(error)}`);
+        console.log('error=', error);
       }
     }
     initPlayer();
@@ -69,46 +77,22 @@ export default function App() {
     };
   }, []);
 
-  const togglePlayback = async () => {
-    const player = playerControllerRef.current;
-    if (!player) {
-      return;
-    }
-    const isPlaying = await player.isPlaying();
-    if (isPlaying) {
-      await player.pause();
-      setStatus('Paused');
-    } else {
-      await player.resume();
-      setStatus('Playing sample stream');
-    }
-  };
+  // const togglePlayback = async () => {
+  //   const player = playerControllerRef.current;
+  //   if (!player) {
+  //     return;
+  //   }
+  //   const isPlaying = await player.isPlaying();
+  //   if (isPlaying) {
+  //     await player.pause();
+  //   } else {
+  //     await player.resume();
+  //   }
+  // };
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.player}>
-        <RNPlayerView ref={viewRef} style={styles.player} />
-      </View>
-      <Text style={styles.status}>{status}</Text>
-      <TouchableOpacity style={styles.button} onPress={togglePlayback}>
-        <Text style={styles.buttonText}>Toggle Play / Pause</Text>
-      </TouchableOpacity>
-      <Text style={styles.tip}>
-        Configure your Tencent Cloud TUIPlayer license before running the
-        example.
-      </Text>
-      <View style={styles.links}>
-        <Text style={styles.linkLabel}>Video URL</Text>
-        <Text style={styles.link} selectable>
-          {VIDEO_URL}
-        </Text>
-        <Text style={[styles.linkLabel, styles.subtitleLabel]}>
-          Subtitle URL
-        </Text>
-        <Text style={styles.link} selectable>
-          {SUBTITLE_URL}
-        </Text>
-      </View>
+      <RNPlayerView ref={viewRef} style={styles.player} collapsable={false} />
     </SafeAreaView>
   );
 }
@@ -117,11 +101,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
   },
   player: {
-    flex: 1,
-    width: '100%',
+    ...StyleSheet.absoluteFill,
+    bottom: 1,
   },
   status: {
     color: '#fff',

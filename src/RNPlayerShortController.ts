@@ -88,6 +88,15 @@ export class RNPlayerShortController {
     await NativeTxplayer.shortControllerSetVideoLoop(controllerId, isLoop);
   }
 
+  async switchResolution(resolution: number, switchType: number) {
+    const controllerId = await this.ensureControllerId();
+    await NativeTxplayer.shortControllerSwitchResolution(
+      controllerId,
+      resolution,
+      switchType
+    );
+  }
+
   async release() {
     if (this.released) {
       return;

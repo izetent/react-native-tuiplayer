@@ -13,6 +13,7 @@ export type {
   NativeSubtitleSource,
   NativeVodSource,
   NativeVodStrategy,
+  NativeBitrateItem,
 } from './NativeTxplayer';
 
 export const PLAYER_VIEW_MANAGER = 'TUIShortVideoItemView';
@@ -96,6 +97,22 @@ export const RNMonetConstant = {
   SR_ALGORITHM_TYPE_PROFESSIONAL_HIGH_QUALITY: 2,
   SR_ALGORITHM_TYPE_PROFESSIONAL_FAST: 3,
 } as const;
+
+export const TUIResolutionType = {
+  GLOBAL: -1,
+  CURRENT: -2,
+} as const;
+
+export type RNTUIResolutionType =
+  | (typeof TUIResolutionType)[keyof typeof TUIResolutionType]
+  | number;
+
+export interface RNPlayerBitrateItem {
+  index: number;
+  width: number;
+  height: number;
+  bitrate: number;
+}
 
 export const TXVodPlayEvent = {
   PLAY_EVT_ERROR_INVALID_LICENSE: -5,

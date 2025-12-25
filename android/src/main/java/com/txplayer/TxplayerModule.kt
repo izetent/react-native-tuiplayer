@@ -4,6 +4,7 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.ReadableMap
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.module.annotations.ReactModule
 import com.txplayer.rnuiplayer.common.TxplayerEventDispatcher
 import com.txplayer.rnuiplayer.player.RNShortController
@@ -11,6 +12,7 @@ import com.txplayer.rnuiplayer.player.RNShortEngine
 import com.txplayer.rnuiplayer.tools.RNTransformer
 import com.txplayer.rnuiplayer.view.RNShortVideoItemView
 import com.txplayer.rnuiplayer.view.RNViewRegistry
+import com.tencent.qcloud.tuiplayer.core.api.model.TUIPlayerBitrateItem
 
 @ReactModule(name = TxplayerModule.NAME)
 class TxplayerModule(reactContext: ReactApplicationContext) :
@@ -99,6 +101,13 @@ class TxplayerModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  override fun shortControllerSwitchResolution(controllerId: Double, resolution: Double, switchType: Double, promise: Promise) {
+    withController(controllerId, promise) { controller ->
+      controller.switchResolution(resolution.toLong(), switchType.toInt())
+      promise.resolve(null)
+    }
+  }
+
   override fun shortControllerRelease(controllerId: Double, promise: Promise) {
     withController(controllerId, promise) { controller ->
       controller.release()
@@ -145,6 +154,36 @@ class TxplayerModule(reactContext: ReactApplicationContext) :
   override fun vodPlayerSeekTo(viewTag: Double, time: Double, promise: Promise) {
     withPlayer(viewTag, promise) { view ->
       view.vodController.seekTo(time)
+      promise.resolve(null)
+    }
+  }
+
+  override fun vodPlayerSwitchResolution(viewTag: Double, resolution: Double, switchType: Double, promise: Promise) {
+    withPlayer(viewTag, promise) { view ->
+      view.vodController.switchResolution(resolution.toLong(), switchType.toInt())
+      promise.resolve(null)
+    }
+  }
+
+  override fun vodPlayerGetSupportResolution(viewTag: Double, promise: Promise) {
+    withPlayer(viewTag, promise) { view ->
+      val result = Arguments.createArray()
+      val items: List<TUIPlayerBitrateItem> = view.vodController.getSupportResolution()
+      items.forEach { item ->
+        val map = Arguments.createMap()
+        map.putInt("index", item.index)
+        map.putInt("width", item.width)
+        map.putInt("height", item.height)
+        map.putInt("bitrate", item.bitrate)
+        result.pushMap(map)
+      }
+      promise.resolve(result)
+    }
+  }
+
+  override fun vodPlayerSetMirror(viewTag: Double, mirror: Boolean, promise: Promise) {
+    withPlayer(viewTag, promise) { view ->
+      view.vodController.setMirror(mirror)
       promise.resolve(null)
     }
   }

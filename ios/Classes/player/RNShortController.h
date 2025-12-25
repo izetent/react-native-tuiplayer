@@ -18,6 +18,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)bindVideoView:(NSNumber *)viewTag index:(NSInteger)index;
 - (void)preBindVideo:(NSNumber *)viewTag index:(NSInteger)index;
 - (void)setVideoLoop:(BOOL)isLoop;
+- (void)switchResolution:(long)resolution switchType:(NSInteger)switchType;
 - (void)releaseController;
 
 @end

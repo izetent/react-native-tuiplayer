@@ -15,6 +15,8 @@ import com.tencent.qcloud.tuiplayer.core.api.model.TUIVideoSource;
 import com.tencent.qcloud.tuiplayer.core.api.ui.player.ITUIVodPlayer;
 import com.tencent.qcloud.tuiplayer.core.api.ui.player.TUIVodObserver;
 import com.tencent.qcloud.tuiplayer.core.api.ui.view.TUIBaseVideoView;
+import com.tencent.qcloud.tuiplayer.core.api.model.TUIPlayerBitrateItem;
+import com.tencent.qcloud.tuiplayer.core.api.common.TUIConstants;
 import com.tencent.qcloud.tuiplayer.core.api.ui.view.vod.TUIVodViewListener;
 import com.tencent.qcloud.tuiplayer.core.tools.TUIPlayerLog;
 import com.tencent.qcloud.tuiplayer.shortvideo.ui.view.TUIShortVideoItemView;
@@ -26,6 +28,7 @@ import com.tencent.rtmp.TXTrackInfo;
 import com.tencent.rtmp.ui.TXSubtitleView;
 
 import java.util.List;
+import java.util.Collections;
 import java.util.Map;
 
 public class RNVodController
@@ -119,6 +122,32 @@ public class RNVodController
   public void setRate(double rate) {
     if (controller != null && controller.getPlayer() instanceof ITUIVodPlayer) {
       ((ITUIVodPlayer) controller.getPlayer()).setRate((float) rate);
+    }
+  }
+
+  public void switchResolution(long resolution, int switchType) {
+    if (controller == null || !(controller.getPlayer() instanceof ITUIVodPlayer)) {
+      return;
+    }
+    ITUIVodPlayer player = (ITUIVodPlayer) controller.getPlayer();
+    if (switchType == TUIConstants.TUIResolutionType.GLOBAL) {
+      player.onGlobalResolutionChanged(resolution);
+    }
+    player.switchResolution(resolution);
+  }
+
+  public List<TUIPlayerBitrateItem> getSupportResolution() {
+    if (controller != null && controller.getPlayer() instanceof ITUIVodPlayer) {
+      List<TUIPlayerBitrateItem> list =
+          ((ITUIVodPlayer) controller.getPlayer()).getSupportResolution();
+      return list != null ? list : Collections.emptyList();
+    }
+    return Collections.emptyList();
+  }
+
+  public void setMirror(boolean mirror) {
+    if (controller != null && controller.getPlayer() instanceof ITUIVodPlayer) {
+      ((ITUIVodPlayer) controller.getPlayer()).setMirror(mirror);
     }
   }
 
