@@ -104,6 +104,13 @@
   [self.currentPlayer setMirror:isMirror];
 }
 
+- (void)setRenderMode:(NSInteger)renderMode {
+  if (!self.currentPlayer) {
+    return;
+  }
+  [self.currentPlayer setRenderMode:(TUI_Enum_Type_RenderMode)renderMode];
+}
+
 - (void)seekToTime:(double)time {
   [self.currentPlayer seekToTime:time];
 }

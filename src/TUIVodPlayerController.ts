@@ -106,6 +106,15 @@ export class TUIVodPlayerController {
     if (!Number.isFinite(eventCode)) {
       return;
     }
+    if (eventCode === TXVodPlayEvent.PLAY_EVT_RCV_FIRST_I_FRAME) {
+      this.listeners.forEach((listener) => listener.onRcvFirstIframe?.(event));
+    }
+    if (eventCode === TXVodPlayEvent.PLAY_EVT_PLAY_BEGIN) {
+      this.listeners.forEach((listener) => listener.onPlayBegin?.(event));
+    }
+    if (eventCode === TXVodPlayEvent.PLAY_EVT_PLAY_END) {
+      this.listeners.forEach((listener) => listener.onPlayEnd?.(event));
+    }
     switch (eventCode) {
       case TXVodPlayEvent.PLAY_EVT_RCV_FIRST_I_FRAME:
       case TXVodPlayEvent.PLAY_EVT_PLAY_BEGIN:
@@ -231,6 +240,10 @@ export class TUIVodPlayerController {
 
   async setMirror(mirror: boolean) {
     await NativeTxplayer.vodPlayerSetMirror(this.viewTag, mirror);
+  }
+
+  async setRenderMode(renderMode: number) {
+    await NativeTxplayer.vodPlayerSetRenderMode(this.viewTag, renderMode);
   }
 
   async seekTo(time: number) {

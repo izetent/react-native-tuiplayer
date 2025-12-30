@@ -94,6 +94,7 @@ export interface Spec extends TurboModule {
     switchType: number
   ): Promise<void>;
   vodPlayerGetSupportResolution(viewTag: number): Promise<NativeBitrateItem[]>;
+  vodPlayerSetRenderMode(viewTag: number, renderMode: number): Promise<void>;
   vodPlayerSetStringOption(
     viewTag: number,
     value: string,

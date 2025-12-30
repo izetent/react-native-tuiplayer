@@ -1,10 +1,11 @@
 package com.txplayer
 
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.ReadableMap
-import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.module.annotations.ReactModule
 import com.txplayer.rnuiplayer.common.TxplayerEventDispatcher
 import com.txplayer.rnuiplayer.player.RNShortController
@@ -69,15 +70,32 @@ class TxplayerModule(reactContext: ReactApplicationContext) :
 
   override fun shortControllerBindVideoView(controllerId: Double, viewTag: Double, index: Double, promise: Promise) {
     withController(controllerId, promise) { controller ->
-      controller.bindVideoView(viewTag.toInt(), index.toInt())
-      promise.resolve(null)
+      UiThreadUtil.runOnUiThread {
+        val view = RNViewRegistry.get(viewTag.toInt())
+        if (view == null) {
+          promise.reject("E_NO_VIEW", "View $viewTag not found")
+          return@runOnUiThread
+        }
+        val ok = controller.bindVideoView(viewTag.toInt(), index.toInt())
+        if (!ok) {
+          promise.reject("E_BIND_FAIL", "bindVideoView failed for index $index")
+        } else {
+          promise.resolve(null)
+        }
+      }
     }
   }
 
   override fun shortControllerPreBindVideo(controllerId: Double, viewTag: Double, index: Double, promise: Promise) {
     withController(controllerId, promise) { controller ->
-      controller.preBindVideo(viewTag.toInt(), index.toInt())
-      promise.resolve(null)
+      UiThreadUtil.runOnUiThread {
+        val ok = controller.preBindVideo(viewTag.toInt(), index.toInt())
+        if (!ok) {
+          promise.reject("E_PREBIND_FAIL", "preBindVideo failed for index $index")
+        } else {
+          promise.resolve(null)
+        }
+      }
     }
   }
 
@@ -184,6 +202,13 @@ class TxplayerModule(reactContext: ReactApplicationContext) :
   override fun vodPlayerSetMirror(viewTag: Double, mirror: Boolean, promise: Promise) {
     withPlayer(viewTag, promise) { view ->
       view.vodController.setMirror(mirror)
+      promise.resolve(null)
+    }
+  }
+
+  override fun vodPlayerSetRenderMode(viewTag: Double, renderMode: Double, promise: Promise) {
+    withPlayer(viewTag, promise) { view ->
+      view.vodController.setRenderMode(renderMode.toInt())
       promise.resolve(null)
     }
   }

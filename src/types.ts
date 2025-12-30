@@ -81,6 +81,9 @@ export interface RNVodControlListener {
   onVodControllerBind?: () => void;
   onVodControllerUnBind?: () => void;
   onVodPlayerEvent?: (event: RNVodEvent) => void;
+  onRcvFirstIframe?: (event: RNVodEvent) => void;
+  onPlayBegin?: (event: RNVodEvent) => void;
+  onPlayEnd?: (event: RNVodEvent) => void;
   onSubtitleTracksUpdate?: (tracks: RNSubtitleTrackInfo[]) => void;
 }
 

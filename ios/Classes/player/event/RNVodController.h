@@ -19,6 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSArray<TUIPlayerBitrateItem *> *)getSupportResolution;
 - (void)switchResolution:(long)resolution switchType:(NSInteger)switchType;
 - (void)setMirror:(BOOL)isMirror;
+- (void)setRenderMode:(NSInteger)renderMode;
 - (NSNumber *)duration;
 - (NSNumber *)currentPlayTime;
 - (NSNumber *)isPlaying;

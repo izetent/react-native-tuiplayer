@@ -292,6 +292,24 @@
   resolve(nil);
 }
 
+- (void)vodPlayerSetRenderMode:(double)viewTag
+                    renderMode:(double)renderMode
+                       resolve:(RCTPromiseResolveBlock)resolve
+                        reject:(RCTPromiseRejectBlock)reject {
+  RNShortVideoView *view = [self videoViewForTag:@(viewTag) reject:reject];
+  if (!view) {
+    return;
+  }
+  if ([view.vodController respondsToSelector:@selector(setRenderMode:)]) {
+    [view.vodController setRenderMode:(NSInteger)renderMode];
+    resolve(nil);
+    return;
+  }
+  reject(@"E_RENDER_MODE_UNSUPPORTED",
+         @"Render mode control is not supported on this platform",
+         nil);
+}
+
 - (void)vodPlayerSetStringOption:(double)viewTag
                            value:(NSString *)value
                               key:(id)key

@@ -73,43 +73,43 @@ public class RNShortController implements TUIPlayerBridge {
     engineObserver.onRelease(controllerId);
   }
 
-  public void bindVideoView(int viewTag, int index) {
-    bindVideoViewInternal(viewTag, index, false);
+  public boolean bindVideoView(int viewTag, int index) {
+    return bindVideoViewInternal(viewTag, index, false);
   }
 
-  public void preBindVideo(int viewTag, int index) {
-    bindVideoViewInternal(viewTag, index, true);
+  public boolean preBindVideo(int viewTag, int index) {
+    return bindVideoViewInternal(viewTag, index, true);
   }
 
-  private void bindVideoViewInternal(int viewTag, int index, boolean isPreBind) {
-    UiThreadUtil.runOnUiThread(
-        () -> {
-          RNShortVideoItemView itemView = RNViewRegistry.get(viewTag);
-          if (itemView == null) {
-            TUIPlayerLog.e(TAG, "bindVideoView met a null view, viewTag:" + viewTag);
-            return;
-          }
-          final int count = dataHolder.size();
-          if (index >= count || index < 0) {
-            TUIPlayerLog.e(TAG, "bindVideoView failed, index outOfRange,index:" + index);
-            return;
-          }
-          TUIBaseVideoView videoView = (TUIBaseVideoView) itemView.getVideoItemView();
-          videoView.bindVideoModel(dataHolder.getSource(index));
-          if (isPreBind) {
-            if (Math.abs(index - currentIndex) > 2) {
-              TUIPlayerLog.w(
-                  TAG,
-                  "skip preRender index:" + index + ", diff from current:" + currentIndex);
-            } else {
-              manager.preRenderOnView(videoView);
-            }
-          } else {
-            currentIndex = index;
-            manager.bindVideoView(videoView);
-            handlePlayerLoopMode(videoView);
-          }
-        });
+  private boolean bindVideoViewInternal(int viewTag, int index, boolean isPreBind) {
+    if (!UiThreadUtil.isOnUiThread()) {
+      UiThreadUtil.runOnUiThread(() -> bindVideoViewInternal(viewTag, index, isPreBind));
+      return true;
+    }
+    RNShortVideoItemView itemView = RNViewRegistry.get(viewTag);
+    if (itemView == null) {
+      TUIPlayerLog.e(TAG, "bindVideoView met a null view, viewTag:" + viewTag);
+      return false;
+    }
+    final int count = dataHolder.size();
+    if (index >= count || index < 0) {
+      TUIPlayerLog.e(TAG, "bindVideoView failed, index outOfRange,index:" + index);
+      return false;
+    }
+    TUIBaseVideoView videoView = (TUIBaseVideoView) itemView.getVideoItemView();
+    videoView.bindVideoModel(dataHolder.getSource(index));
+    if (isPreBind) {
+      if (Math.abs(index - currentIndex) > 2) {
+        TUIPlayerLog.w(TAG, "skip preRender index:" + index + ", diff from current:" + currentIndex);
+      } else {
+        manager.preRenderOnView(videoView);
+      }
+    } else {
+      currentIndex = index;
+      manager.bindVideoView(videoView);
+      handlePlayerLoopMode(videoView);
+    }
+    return true;
   }
 
   private void handlePlayerLoopMode(@Nullable TUIBaseVideoView itemView) {

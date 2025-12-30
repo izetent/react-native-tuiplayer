@@ -29,6 +29,7 @@ import com.tencent.rtmp.ui.TXSubtitleView;
 
 import java.util.List;
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.Map;
 
 public class RNVodController
@@ -40,6 +41,8 @@ public class RNVodController
   private final RNShortVideoItemView parentView;
   private TUIPlayerController controller;
   private TUIVideoSource curSource;
+  private final List<TXTrackInfo> lastSubtitleTracks = new ArrayList<>();
+  private int selectedSubtitleTrack = -1;
 
   public RNVodController(ReactContext context, RNShortVideoItemView parentView) {
     this.reactContext = context;
@@ -157,6 +160,12 @@ public class RNVodController
     }
   }
 
+  public void setRenderMode(int renderMode) {
+    if (controller != null && controller.getPlayer() instanceof ITUIVodPlayer) {
+      ((ITUIVodPlayer) controller.getPlayer()).setRenderMode(renderMode);
+    }
+  }
+
   public void seekTo(double time) {
     if (controller != null) {
       controller.seekTo((float) time);
@@ -204,13 +213,31 @@ public class RNVodController
   public void onPlayPrepare() {}
 
   @Override
-  public void onPlayBegin() {}
+  public void onPlayBegin() {
+    if (!lastSubtitleTracks.isEmpty()) {
+      parentView.post(
+          () -> {
+            attachSubtitleTrackInternal(selectedSubtitleTrack);
+            TUIPlayerLog.i(
+                TAG,
+                "onPlayBegin: re-attached subtitle track "
+                    + selectedSubtitleTrack
+                    + " viewTag="
+                    + getViewTag());
+          });
+    }
+  }
 
   @Override
   public void onPlayLoading() {}
 
   @Override
-  public void onPlayLoadingEnd() {}
+  public void onPlayLoadingEnd() {
+    if (!lastSubtitleTracks.isEmpty() && selectedSubtitleTrack >= 0) {
+      parentView.post(
+          () -> attachSubtitleTrackInternal(selectedSubtitleTrack));
+    }
+  }
 
   @Override
   public void onPlayProgress(long l, long l1, long l2) {}
@@ -239,14 +266,19 @@ public class RNVodController
       parentView.hideSubtitleLayer();
       return;
     }
-    if (controller.getPlayer() instanceof ITUIVodPlayer) {
-      ITUIVodPlayer player = (ITUIVodPlayer) controller.getPlayer();
-      TXSubtitleView subtitleView = parentView.getSubtitleView();
-      player.setSubtitleView(subtitleView);
-      player.selectTrack(list.get(0).trackIndex);
-      parentView.showSubtitleLayer();
-      emitSubtitleTracks(list);
-    }
+    List<TXTrackInfo> tracksCopy = new ArrayList<>(list);
+    lastSubtitleTracks.clear();
+    lastSubtitleTracks.addAll(tracksCopy);
+    // Default to no native subtitle; RN侧自行渲染。
+    selectedSubtitleTrack = -1;
+    parentView.post(
+        () -> {
+          if (controller == null || controller.getPlayer() == null || tracksCopy.isEmpty()) {
+            parentView.hideSubtitleLayer();
+            return;
+          }
+          emitSubtitleTracks(tracksCopy);
+        });
   }
 
   @Override
@@ -257,6 +289,12 @@ public class RNVodController
 
   @Override
   public void onFirstFrameRendered() {
+    if (controller != null
+        && controller.getPlayer() != null
+        && !lastSubtitleTracks.isEmpty()
+        && selectedSubtitleTrack >= 0) {
+      parentView.post(() -> attachSubtitleTrackInternal(selectedSubtitleTrack));
+    }
     emitEvent(
         RNConstant.EVENT_PLAY_EVENT,
         RNUtils.getParams(RNConstant.PLAY_EVT_FIRST_FRAME_RENDERED, new Bundle()));
@@ -275,6 +313,18 @@ public class RNVodController
   public void onPlayStop() {}
 
   public void selectSubtitleTrack(int trackIndex) {
+    if (controller == null || controller.getPlayer() == null) {
+      TUIPlayerLog.w(TAG, "selectSubtitleTrack: controller/player null");
+      return;
+    }
+    if (!(controller.getPlayer() instanceof ITUIVodPlayer)) {
+      return;
+    }
+    selectedSubtitleTrack = trackIndex;
+    parentView.post(() -> attachSubtitleTrackInternal(trackIndex));
+  }
+
+  private void attachSubtitleTrackInternal(int trackIndex) {
     if (controller == null || controller.getPlayer() == null) {
       return;
     }

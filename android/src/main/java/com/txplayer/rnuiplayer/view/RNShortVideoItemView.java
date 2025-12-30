@@ -2,7 +2,6 @@ package com.txplayer.rnuiplayer.view;
 
 import android.content.Context;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.FrameLayout.LayoutParams;
 
@@ -17,7 +16,7 @@ import com.txplayer.rnuiplayer.common.RNConstant;
 import com.txplayer.rnuiplayer.common.TxplayerEventDispatcher;
 import com.txplayer.rnuiplayer.player.event.RNVodController;
 
-public class RNShortVideoItemView extends FrameLayout {
+  public class RNShortVideoItemView extends FrameLayout {
 
   private final TUIShortVideoItemView itemView;
   private final RNVodController vodController;
@@ -36,7 +35,6 @@ public class RNShortVideoItemView extends FrameLayout {
     subtitleView.setVisibility(View.GONE);
     LayoutParams subtitleParams =
         new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
-    subtitleParams.bottomMargin = (int) (context.getResources().getDisplayMetrics().density * 40);
     addView(subtitleView, subtitleParams);
     vodController = new RNVodController(reactContext, this);
     itemView.addVideoItemViewListener(vodController);
@@ -57,6 +55,7 @@ public class RNShortVideoItemView extends FrameLayout {
 
   public void showSubtitleLayer() {
     subtitleView.setVisibility(View.VISIBLE);
+    subtitleView.bringToFront();
   }
 
   public void hideSubtitleLayer() {
