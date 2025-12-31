@@ -4,7 +4,13 @@ import { requireNativeComponent } from 'react-native';
 
 import { PLAYER_VIEW_MANAGER } from './types';
 
-type NativeProps = ViewProps;
+export type ResizeMode = 'contain' | 'cover';
+
+type NativeProps = ViewProps & {
+  resizeMode?: ResizeMode;
+  videoWidth?: number;
+  videoHeight?: number;
+};
 
 const NativeRNPlayerView =
   requireNativeComponent<NativeProps>(PLAYER_VIEW_MANAGER);

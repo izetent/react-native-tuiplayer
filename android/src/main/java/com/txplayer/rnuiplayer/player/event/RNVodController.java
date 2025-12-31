@@ -18,7 +18,6 @@ import com.tencent.qcloud.tuiplayer.core.api.ui.view.TUIBaseVideoView;
 import com.tencent.qcloud.tuiplayer.core.api.model.TUIPlayerBitrateItem;
 import com.tencent.qcloud.tuiplayer.core.api.common.TUIConstants;
 import com.tencent.qcloud.tuiplayer.core.api.ui.view.vod.TUIVodViewListener;
-import com.tencent.qcloud.tuiplayer.core.tools.TUIPlayerLog;
 import com.tencent.qcloud.tuiplayer.shortvideo.ui.view.TUIShortVideoItemView;
 import com.txplayer.rnuiplayer.common.RNConstant;
 import com.txplayer.rnuiplayer.common.TxplayerEventDispatcher;
@@ -35,7 +34,9 @@ import java.util.Map;
 public class RNVodController
     implements TUIVodViewListener, TUIVodObserver {
 
-  private static final String TAG = "RNVodController";
+  // TX/TUI SDK render mode constants: 0 = FULL_FILL_SCREEN, 1 = ADJUST_RESOLUTION.
+  private static final int RENDER_MODE_FIT = 1; // 等比
+  private static final int RENDER_MODE_FILL = 0; // 填充
 
   private final ReactContext reactContext;
   private final RNShortVideoItemView parentView;
@@ -43,6 +44,10 @@ public class RNVodController
   private TUIVideoSource curSource;
   private final List<TXTrackInfo> lastSubtitleTracks = new ArrayList<>();
   private int selectedSubtitleTrack = -1;
+  private int currentRenderMode = RENDER_MODE_FIT;
+  private int videoWidth = 0;
+  private int videoHeight = 0;
+  private int sizeRetryCount = 0;
 
   public RNVodController(ReactContext context, RNShortVideoItemView parentView) {
     this.reactContext = context;
@@ -69,6 +74,10 @@ public class RNVodController
   public void onPlayerControllerBind(TUIPlayerController playerController) {
     controller = playerController;
     controller.addPlayerObserver(this);
+    videoWidth = 0;
+    videoHeight = 0;
+    sizeRetryCount = 0;
+    applyRenderMode(currentRenderMode);
     emitEvent(RNConstant.EVENT_CONTROLLER_BIND, null);
   }
 
@@ -76,6 +85,8 @@ public class RNVodController
   public void onPlayerControllerUnBind(TUIPlayerController playerController) {
     controller = null;
     parentView.hideSubtitleLayer();
+    parentView.resetVideoSize();
+    sizeRetryCount = 0;
     emitEvent(RNConstant.EVENT_CONTROLLER_UNBIND, null);
   }
 
@@ -101,6 +112,9 @@ public class RNVodController
     if (controller != null) {
       controller.stop();
     }
+    videoWidth = 0;
+    videoHeight = 0;
+    parentView.resetVideoSize();
   }
 
   public void startPlay(@NonNull TUIVideoSource source) {
@@ -161,9 +175,8 @@ public class RNVodController
   }
 
   public void setRenderMode(int renderMode) {
-    if (controller != null && controller.getPlayer() instanceof ITUIVodPlayer) {
-      ((ITUIVodPlayer) controller.getPlayer()).setRenderMode(renderMode);
-    }
+    currentRenderMode = renderMode;
+    applyRenderMode(renderMode);
   }
 
   public void seekTo(double time) {
@@ -206,6 +219,7 @@ public class RNVodController
   @Override
   public void onPlayEvent(ITUIVodPlayer player, int event, Bundle bundle) {
     Map<String, Object> payload = RNUtils.getParams(event, bundle);
+    maybeUpdateVideoSize(bundle);
     emitEvent(RNConstant.EVENT_PLAY_EVENT, payload);
   }
 
@@ -214,18 +228,14 @@ public class RNVodController
 
   @Override
   public void onPlayBegin() {
+    updateSizeFromPlayer();
     if (!lastSubtitleTracks.isEmpty()) {
       parentView.post(
           () -> {
             attachSubtitleTrackInternal(selectedSubtitleTrack);
-            TUIPlayerLog.i(
-                TAG,
-                "onPlayBegin: re-attached subtitle track "
-                    + selectedSubtitleTrack
-                    + " viewTag="
-                    + getViewTag());
           });
     }
+    applyRenderMode(currentRenderMode);
   }
 
   @Override
@@ -233,10 +243,12 @@ public class RNVodController
 
   @Override
   public void onPlayLoadingEnd() {
+    updateSizeFromPlayer();
     if (!lastSubtitleTracks.isEmpty() && selectedSubtitleTrack >= 0) {
       parentView.post(
           () -> attachSubtitleTrackInternal(selectedSubtitleTrack));
     }
+    applyRenderMode(currentRenderMode);
   }
 
   @Override
@@ -285,16 +297,22 @@ public class RNVodController
   public void onRecFileVideoInfo(TUIFileVideoInfo tuiFileVideoInfo) {}
 
   @Override
-  public void onResolutionChanged(long l, long l1) {}
+  public void onResolutionChanged(long width, long height) {
+    if (width > 0 && height > 0) {
+      parentView.updateVideoSize((int) width, (int) height);
+    }
+  }
 
   @Override
   public void onFirstFrameRendered() {
+    updateSizeFromPlayer();
     if (controller != null
         && controller.getPlayer() != null
         && !lastSubtitleTracks.isEmpty()
         && selectedSubtitleTrack >= 0) {
       parentView.post(() -> attachSubtitleTrackInternal(selectedSubtitleTrack));
     }
+    applyRenderMode(currentRenderMode);
     emitEvent(
         RNConstant.EVENT_PLAY_EVENT,
         RNUtils.getParams(RNConstant.PLAY_EVT_FIRST_FRAME_RENDERED, new Bundle()));
@@ -314,7 +332,6 @@ public class RNVodController
 
   public void selectSubtitleTrack(int trackIndex) {
     if (controller == null || controller.getPlayer() == null) {
-      TUIPlayerLog.w(TAG, "selectSubtitleTrack: controller/player null");
       return;
     }
     if (!(controller.getPlayer() instanceof ITUIVodPlayer)) {
@@ -362,5 +379,65 @@ public class RNVodController
     }
     params.putArray("tracks", trackArray);
     TxplayerEventDispatcher.emit(RNConstant.EVENT_SUBTITLE_TRACKS, params);
+  }
+
+  private void applyRenderMode(int rawMode) {
+    if (controller == null || !(controller.getPlayer() instanceof ITUIVodPlayer)) {
+      return;
+    }
+    int mode = rawMode == 2 ? RENDER_MODE_FILL : RENDER_MODE_FIT;
+    ((ITUIVodPlayer) controller.getPlayer()).setRenderMode(mode);
+    // renderMode==fit 时遵循视频宽高比，否则放开比例
+    parentView.applyCurrentResizeMode();
+  }
+
+  private void maybeUpdateVideoSize(@Nullable Bundle bundle) {
+    if (bundle == null) {
+      return;
+    }
+    int width = bundle.getInt("EVT_WIDTH", 0);
+    int height = bundle.getInt("EVT_HEIGHT", 0);
+    if (width == 0 && height == 0) {
+      width = bundle.getInt("EVT_PARAM1", 0);
+      height = bundle.getInt("EVT_PARAM2", 0);
+    }
+    if (width == 0 && height == 0) {
+      // Some SDKs report as double.
+      double w = bundle.getDouble("EVT_WIDTH", 0);
+      double h = bundle.getDouble("EVT_HEIGHT", 0);
+      if (w == 0 && h == 0) {
+        w = bundle.getDouble("EVT_PARAM1", 0);
+        h = bundle.getDouble("EVT_PARAM2", 0);
+      }
+      width = (int) Math.round(w);
+      height = (int) Math.round(h);
+    }
+    if (width > 0 && height > 0) {
+      videoWidth = width;
+      videoHeight = height;
+      parentView.updateVideoSize(width, height);
+    } else {
+      updateSizeFromPlayer();
+    }
+  }
+
+  private void updateSizeFromPlayer() {
+    if (controller == null || !(controller.getPlayer() instanceof ITUIVodPlayer)) {
+      return;
+    }
+    ITUIVodPlayer player = (ITUIVodPlayer) controller.getPlayer();
+    int w = player.getWidth();
+    int h = player.getHeight();
+    if (w > 0 && h > 0 && (w != videoWidth || h != videoHeight)) {
+      videoWidth = w;
+      videoHeight = h;
+      parentView.updateVideoSize(w, h);
+      sizeRetryCount = 0;
+    } else {
+      if (sizeRetryCount < 10) {
+        sizeRetryCount++;
+        parentView.postDelayed(this::updateSizeFromPlayer, 100);
+      }
+    }
   }
 }

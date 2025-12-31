@@ -23,11 +23,15 @@ import {
   setTUIPlayerConfig,
   TUIVodPlayerController,
 } from 'react-native-txplayer';
-import type { RNVideoSource, RNVodEvent } from 'react-native-txplayer';
+import type {
+  RNPlayerBitrateItem,
+  RNVideoSource,
+  RNVodEvent,
+} from 'react-native-txplayer';
 import { parseSubtitles, type SubtitleCue } from './subtitleParser';
 
 const VIDEO_URL =
-  'https://gz001-1377187151.cos.ap-guangzhou.myqcloud.com/short1080/S00379-The%20Double%20Life/1.mp4';
+  'https://gz001-1377187151.cos.ap-guangzhou.myqcloud.com/short1080/S00268-Hollywood%20Star%27s%20Fake%20Girlfriend/4/index.m3u8';
 const COVER_URL =
   'https://gz001-1377187151.cos.ap-guangzhou.myqcloud.com/short1080/S00379-The%20Double%20Life/S00379-The%20Double%20Life.jpg';
 const SUBTITLE_URL =
@@ -67,6 +71,11 @@ export default function App() {
   const subtitleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const subtitleCuesRef = useRef<SubtitleCue[] | null>(null);
   const subtitleCacheRef = useRef<Record<string, SubtitleCue[]>>({});
+  const [availableResolutions, setAvailableResolutions] = useState<
+    RNPlayerBitrateItem[]
+  >([]);
+  const [currentResolutionLabel, setCurrentResolutionLabel] = useState('自动');
+  const [isAutoResolution, setIsAutoResolution] = useState(true);
 
   const stopSubtitleTimer = useCallback(() => {
     if (subtitleTimerRef.current) {
@@ -189,7 +198,7 @@ export default function App() {
       renderModeRef.current = nextMode;
       setStatus(
         `第 ${current + 1} 条渲染模式已切换为 ${
-          nextMode === 2 ? '填充' : '等比适配'
+          nextMode === 2 ? '填充裁剪' : '等比适配'
         }`
       );
     } catch (error) {
@@ -198,9 +207,104 @@ export default function App() {
     }
   }, []);
 
-  const requestPictureInPicture = useCallback(async () => {
-    setStatus('当前版本暂未开放画中画');
-  }, []);
+  const pickResolutionByHeight = useCallback(
+    (items: RNPlayerBitrateItem[], targetHeight: number) => {
+      if (!items?.length) {
+        return null;
+      }
+      const sorted = [...items].sort((a, b) => b.height - a.height);
+      const exact = sorted.find(
+        (item) => Math.abs(item.height - targetHeight) < 80
+      );
+      if (exact) {
+        return exact;
+      }
+      const lower = sorted.find((item) => item.height <= targetHeight);
+      return lower ?? sorted[0];
+    },
+    []
+  );
+
+  const refreshResolutions = useCallback(
+    async (player: TUIVodPlayerController | null, autoPick = false) => {
+      if (!player) {
+        return;
+      }
+      try {
+        const items = await player.getSupportResolution();
+        console.log('[resolution] fetched items', items);
+        setAvailableResolutions(items);
+        if (autoPick && items.length) {
+          const preferred =
+            [1080, 720, 480]
+              .map((height) => pickResolutionByHeight(items, height))
+              .find(Boolean) ?? items[0];
+          if (preferred) {
+            await player.switchResolution(preferred.index);
+            setCurrentResolutionLabel(`${preferred.height}p`);
+            setIsAutoResolution(true);
+            setStatus(`自动选择 ${preferred.height}p 清晰度`);
+          }
+        } else if (!items.length) {
+          console.warn('[resolution] empty list; source may be single bitrate');
+        }
+      } catch (error) {
+        console.log('refreshResolutions error', error);
+      }
+    },
+    [pickResolutionByHeight]
+  );
+
+  const handleSwitchQuality = useCallback(
+    async (targetHeight?: number) => {
+      const player = vodRef.current;
+      if (!player) {
+        setStatus('播放器未准备好');
+        return;
+      }
+      try {
+        const items =
+          availableResolutions.length > 0
+            ? availableResolutions
+            : await player.getSupportResolution();
+        console.log('[resolution] switch request items', items);
+        if (!items.length) {
+          setStatus('当前清晰度列表为空');
+          console.warn('[resolution] empty list when switching');
+          return;
+        }
+        if (!availableResolutions.length) {
+          setAvailableResolutions(items);
+        }
+        if (targetHeight == null) {
+          const preferred =
+            [1080, 720, 480]
+              .map((height) => pickResolutionByHeight(items, height))
+              .find(Boolean) ?? items[0];
+          if (preferred) {
+            await player.switchResolution(preferred.index);
+            setCurrentResolutionLabel(`${preferred.height}p`);
+            setIsAutoResolution(true);
+            setStatus('已切换到自动优选清晰度');
+          }
+          return;
+        }
+        const match = pickResolutionByHeight(items, targetHeight);
+        if (!match) {
+          setStatus(`未找到 ${targetHeight}p 清晰度`);
+          return;
+        }
+        await player.switchResolution(match.index);
+        setCurrentResolutionLabel(`${match.height}p`);
+        setIsAutoResolution(false);
+        setStatus(`已切换到 ${match.height}p`);
+      } catch (error) {
+        console.log('handleSwitchQuality error', error);
+        setStatus(`切换清晰度失败: ${String(error)}`);
+      }
+    },
+    [availableResolutions, pickResolutionByHeight]
+  );
 
   const bindAndStart = useCallback(
     async (index: number, attempt = 0) => {
@@ -230,6 +334,9 @@ export default function App() {
       stopSubtitleTimer();
       activeIndexRef.current = index;
       setActiveIndex(index);
+      setAvailableResolutions([]);
+      setIsAutoResolution(true);
+      setCurrentResolutionLabel('自动');
       try {
         const vodController = await controller.bindVodPlayer(ref, index);
         vodRef.current = vodController;
@@ -244,8 +351,22 @@ export default function App() {
             | undefined;
           const codeRaw = payload?.event ?? payload?.EVT_EVENT;
           const code = Number(codeRaw);
-          if (code === 2003 || code === 50001) {
-            // ready
+          if (!Number.isNaN(code)) {
+            console.log(
+              '[event] onVodPlayerEvent code',
+              code,
+              'payload',
+              payload
+            );
+          }
+          if (code === 2010 || code === 2003 || code === 50001) {
+            refreshResolutions(vodController, false);
+          }
+          if (
+            code === 2015 /* PLAY_EVT_STREAM_SWITCH_SUCC */ ||
+            code === 2009 /* PLAY_EVT_CHANGE_RESOLUTION */
+          ) {
+            setStatus(`清晰度切换成功，事件码 ${code}`);
           }
         };
         vodController.addListener({
@@ -266,6 +387,7 @@ export default function App() {
         });
         await controller.startCurrent();
         setStatus(`播放第 ${index + 1} 条`);
+        await refreshResolutions(vodController, true);
         const nextRef = viewRefs.current[index + 1];
         if (nextRef?.current) {
           controller.preCreateVodPlayer(nextRef, index + 1).catch(() => {});
@@ -275,7 +397,13 @@ export default function App() {
         setStatus(`绑定失败 #${index + 1}: ${String(error)}`);
       }
     },
-    [ensureViewRef, pauseActiveIfPlaying, stopSubtitleTimer, loadSubtitleSource]
+    [
+      ensureViewRef,
+      pauseActiveIfPlaying,
+      stopSubtitleTimer,
+      loadSubtitleSource,
+      refreshResolutions,
+    ]
   );
   bindAndStartRef.current = bindAndStart;
 
@@ -336,11 +464,22 @@ export default function App() {
     index,
   }));
 
-  const renderItem = ({ item }: ListRenderItemInfo<FeedItem>) => {
+  const renderItem = ({ item, index }: ListRenderItemInfo<FeedItem>) => {
     const ref = ensureViewRef(item.index);
+    const qualityDisplay =
+      isAutoResolution && currentResolutionLabel !== '自动'
+        ? `自动（${currentResolutionLabel}）`
+        : currentResolutionLabel || '自动';
     return (
       <View style={styles.card}>
-        <RNPlayerView ref={ref} style={styles.player} collapsable={false} />
+        <RNPlayerView
+          ref={ref}
+          style={styles.player}
+          resizeMode={index % 2 === 0 ? 'cover' : 'contain'}
+          videoWidth={1080}
+          videoHeight={1920}
+          collapsable={false}
+        />
         <View style={styles.overlay} pointerEvents="none">
           <Text style={styles.title}>短视频 #{item.index + 1}</Text>
         </View>
@@ -362,12 +501,12 @@ export default function App() {
           >
             <Text style={styles.buttonText}>切换尺寸</Text>
           </TouchableOpacity>
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={[styles.button, styles.buttonPip]}
             onPress={requestPictureInPicture}
           >
             <Text style={styles.buttonText}>画中画</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
           {/* <TouchableOpacity
             style={[styles.button, styles.buttonTertiary]}
             onPress={logCurrentTimes}
@@ -375,6 +514,38 @@ export default function App() {
             <Text style={styles.buttonText}>打印时长</Text>
           </TouchableOpacity> */}
         </View>
+        {activeIndex === item.index ? (
+          <View style={styles.qualityBar}>
+            <Text style={styles.qualityLabel}>清晰度：{qualityDisplay}</Text>
+            <View style={styles.qualityButtons}>
+              <TouchableOpacity
+                style={[
+                  styles.qualityButton,
+                  isAutoResolution && styles.qualityButtonActive,
+                ]}
+                onPress={() => handleSwitchQuality()}
+              >
+                <Text style={styles.qualityButtonText}>自动</Text>
+              </TouchableOpacity>
+              {[480, 720, 1080].map((height) => {
+                const isActive =
+                  !isAutoResolution && currentResolutionLabel === `${height}p`;
+                return (
+                  <TouchableOpacity
+                    key={height}
+                    style={[
+                      styles.qualityButton,
+                      isActive && styles.qualityButtonActive,
+                    ]}
+                    onPress={() => handleSwitchQuality(height)}
+                  >
+                    <Text style={styles.qualityButtonText}>{height}p</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
       </View>
     );
   };
@@ -424,9 +595,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   player: {
-    width: '100%',
-    height: 400,
-    // height: SCREEN_HEIGHT / 2,
+    position: 'absolute',
+    top: 200,
+    right: 0,
+    left: 0,
+    bottom: 200,
+    backgroundColor: 'red',
   },
   cover: {
     position: 'absolute',
@@ -496,6 +670,43 @@ const styles = StyleSheet.create({
     backgroundColor: '#059669',
   },
   buttonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  qualityBar: {
+    position: 'absolute',
+    top: 72,
+    left: 16,
+    right: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 12,
+  },
+  qualityLabel: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  qualityButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  qualityButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    minWidth: 72,
+    alignItems: 'center',
+  },
+  qualityButtonActive: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+  },
+  qualityButtonText: {
     color: '#fff',
     fontWeight: '700',
   },

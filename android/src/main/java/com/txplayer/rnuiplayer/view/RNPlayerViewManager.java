@@ -4,6 +4,7 @@ import androidx.annotation.NonNull;
 
 import com.facebook.react.uimanager.SimpleViewManager;
 import com.facebook.react.uimanager.ThemedReactContext;
+import com.facebook.react.uimanager.annotations.ReactProp;
 import com.txplayer.rnuiplayer.common.RNConstant;
 
 public class RNPlayerViewManager extends SimpleViewManager<RNShortVideoItemView> {
@@ -24,5 +25,20 @@ public class RNPlayerViewManager extends SimpleViewManager<RNShortVideoItemView>
   public void onDropViewInstance(@NonNull RNShortVideoItemView view) {
     view.dispose();
     super.onDropViewInstance(view);
+  }
+
+  @ReactProp(name = "resizeMode")
+  public void setResizeMode(RNShortVideoItemView view, String resizeMode) {
+    view.setResizeMode(resizeMode);
+  }
+
+  @ReactProp(name = "videoWidth")
+  public void setVideoWidth(RNShortVideoItemView view, int width) {
+    view.setVideoWidthProp(width);
+  }
+
+  @ReactProp(name = "videoHeight")
+  public void setVideoHeight(RNShortVideoItemView view, int height) {
+    view.setVideoHeightProp(height);
   }
 }

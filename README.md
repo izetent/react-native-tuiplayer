@@ -56,54 +56,71 @@ export default function FeedPlayer() {
 }
 ```
 
-## API overview
+## API 速览（实事求是）
 
-### `setTUIPlayerConfig(config: RNPlayerConfig)`
+### 初始化
 
-Configures the global TUIPlayer license and logging behaviour. Must be called before instantiating controllers.
+- `setTUIPlayerConfig(config: RNPlayerConfig)`  
+  传入 licenseUrl / licenseKey（必填）和 enableLog，必须在创建任何 controller 前调用。
+- `setMonetAppInfo(appId, authId, srAlgorithmType)`  
+  可选，开启腾讯 Monet 超分（需要对应授权）。
 
-### `setMonetAppInfo(appId: number, authId: number, srAlgorithmType: number)`
+### 组件
 
-Initialises Tencent Monet (super resolution) when you own the licence. The SR algorithm type constants are exposed via `RNMonetConstant`.
+- `RNPlayerView`  
+  原生播放器容器，必须用 ref 传给控制器绑定：`const ref = useRef(null); <RNPlayerView ref={ref} />`
 
-### `RNPlayerShortController`
+### 短视频控制器 `RNPlayerShortController`
 
-Represents a short‑video feed controller (one per list). Methods mirror the RN plugin:
+| 方法 | 说明 |
+| --- | --- |
+| `setModels(sources: RNVideoSource[])` / `appendModels(...)` | 重置/追加列表数据 |
+| `bindVodPlayer(viewRef, index)` | 绑定指定索引到某个 `RNPlayerView`，返回 `TUIVodPlayerController` |
+| `preCreateVodPlayer(viewRef, index)` | 预绑定相邻项以加速切换 |
+| `setVodStrategy(strategy)` | 设置渲染模式、预下载/预加载、SR 等策略 |
+| `startCurrent()` | 开始当前索引播放 |
+| `setVideoLoop(isLoop)` | 设置循环 |
+| `switchResolution(resolution, switchType)` | 切换清晰度（配合 `getSupportResolution` 使用） |
+| `release()` | 释放所有播放器/资源 |
 
-| Method                                          | Description                                                                                                    |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `setModels(sources: RNVideoSource[])`           | Resets the feed data set.                                                                                      |
-| `appendModels(sources)`                         | Appends more videos for endless scrolling.                                                                     |
-| `bindVodPlayer(viewRef, index)`                 | Binds a `RNPlayerView` to a feed index and returns a `TUIVodPlayerController`. Call this for the current page. |
-| `preCreateVodPlayer(viewRef, index)`            | Prepares neighbour cells for instant playback.                                                                 |
-| `setVodStrategy(strategy: RNPlayerVodStrategy)` | Fine tune preload counts, buffer sizes, render mode and SR toggle.                                             |
-| `startCurrent()`                                | Resumes playback of the currently bound index.                                                                 |
-| `setVideoLoop(isLoop: boolean)`                 | Enables/Disables loop playback.                                                                                |
-| `release()`                                     | Releases all players and preload resources.                                                                    |
+### 单个播放器控制器 `TUIVodPlayerController`
 
-### `RNPlayerView`
+- 播控：`startPlay(source)`, `pause()`, `resume()`, `seekTo(time)`  
+  速率/静音/镜像/渲染：`setRate(rate)`, `setMute(mute)`, `setMirror(mirror)`, `setRenderMode(mode)`  
+  自定义字符串选项：`setStringOption(value, key)`
+- 清晰度：`getSupportResolution()`，`switchResolution(resolution, switchType?)`
+- 字幕：`selectSubtitleTrack(trackIndex)`（-1 隐藏）
+- 查询：`getDuration()`, `getCurrentPlayTime()`, `isPlaying()`
+- 生命周期：`release()`
+- 事件：`addListener({ onSubtitleTracksUpdate, onVodPlayerEvent, onVodControllerBind, onVodControllerUnBind, onRcvFirstIframe, onPlayBegin, onPlayEnd })`
 
-Native view that renders the current `TUIShortVideoItemView`. Use `ref`/`findNodeHandle` when binding.
+### `RNVideoSource` 关键字段
 
-### `TUIVodPlayerController`
+- 播放源：`videoURL` 或 `fileId`（配 `appId`/`pSign`）
+- 画面：`coverPictureUrl`
+- 字幕：`subtitleSources?: { url; mimeType; name? }[]`（需要 LiteAV Premium 版本支持原生字幕轨道）
+- 其他：`extInfo` 自定义透传，`isAutoPlay` 自动播放
 
-Returned by `bindVodPlayer`. Provides on-demand control and events:
+### 字幕现状（务必阅读）
 
-- `pause()`, `resume()`, `seekTo(seconds)`, `setRate(rate)`, `setMute(true/false)`
-- `getDuration()`, `getCurrentPlayTime()`, `isPlaying()`
-- `addListener(listener)` — receives controller bind/unbind notifications and `onVodPlayerEvent` with `TXVodPlayEvent` codes. Remove with `removeListener`.
+- 原生字幕：`onSubtitleTracksUpdate` 会在轨道到达时触发，`selectSubtitleTrack(idx)` 将原生 `TXSubtitleView` 绑定到播放器。需要 LiteAV Premium 才有字幕轨道。
+- 示例 App：为了避免原生层级问题，示例默认 `selectSubtitleTrack(-1)` 关闭原生字幕，并在 RN 覆盖层自行解析渲染 `subtitleSources[0]`（见 `example/src/App.tsx` 的自绘逻辑）。如果你要启用原生字幕，请移除该行并在轨道回调中调用 `selectSubtitleTrack`。
+- iOS：目前仅暴露字幕相关 API，原生渲染未完全打通，推荐使用 RN 覆盖层自绘。
+- 自定义样式：原生 `TXSubtitleView` 样式能力有限，若需自定义字号/颜色/背景，建议使用 RN 自绘字幕（参考示例）。
 
-### `RNVideoSource`
+### 清晰度切换示例
 
-Define one of `videoURL` or `fileId` (with `appId` & optional `pSign`). `coverPictureUrl` is shown before the first frame. `extInfo` allows passing custom metadata down to the native layer.
-`subtitleSources` lets you attach external subtitle tracks. Each track takes `{ url, mimeType, name? }` and requires the Premium LiteAV SDK. When subtitle tracks load, `TUIVodPlayerController` fires `onSubtitleTracksUpdate` so you can call `selectSubtitleTrack(trackIndex)` to switch languages.
+```ts
+const items = await vodController.getSupportResolution();
+// 选择一档分辨率（SDK 返回的分辨率值或 bitrate item 的 index）
+await vodController.switchResolution(items[0]?.index ?? 0);
+```
 
-## Notes
+## 常见注意事项
 
-- **Licensing:** Without a valid licence `startCurrent()` returns `TUI_ERROR_INVALID_LICENSE`. Configure `licenseUrl` + `licenseKey` before using this package.
-- **Super Resolution:** Call `setMonetAppInfo` first, then toggle `RNPlayerVodStrategy.enableSuperResolution`.
-- **Subtitles:** Provide `subtitleSources` in every `RNVideoSource` that needs subtitles. On Android we render them inside a native `TXSubtitleView`. Use `TUIVodPlayerController.addListener` to react to `onSubtitleTracksUpdate` and call `controller.selectSubtitleTrack(index)` to switch languages or pass `-1` to hide subtitles. (iOS currently exposes the APIs but native subtitles are not yet wired up.)
-- **Platform parity:** The TypeScript surface mimics the RN plugin so existing business logic can be ported with minimal changes.
+- **License 先配置**：未配置有效 license 时 `startCurrent()` 会返回 `TUI_ERROR_INVALID_LICENSE`。
+- **资源释放**：页面卸载时调用 `vodController.release()` 和 `shortController.release()`。
+- **依赖版本**：字幕轨道、SR 等能力需要 LiteAV Premium 套件，请确认原生依赖版本满足需求。
 
 ## Contributing
 
