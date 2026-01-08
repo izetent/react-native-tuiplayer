@@ -56,64 +56,119 @@ export default function FeedPlayer() {
 }
 ```
 
-## API 速览（实事求是）
+## API 使用
 
 ### 初始化
 
 - `setTUIPlayerConfig(config: RNPlayerConfig)`  
-  传入 licenseUrl / licenseKey（必填）和 enableLog，必须在创建任何 controller 前调用。
+  必须在创建任何 controller 前调用；`enableLog` 未传时默认为 `true`。  
+  | 字段 | 说明 |
+  | --- | --- |
+  | `licenseUrl` | 腾讯云控制台发放的 License URL |
+  | `licenseKey` | License Key |
+  | `enableLog?` | 是否输出原生日志（默认 `true`） |
 - `setMonetAppInfo(appId, authId, srAlgorithmType)`  
-  可选，开启腾讯 Monet 超分（需要对应授权）。
+  可选，开启 Monet 超级分辨率；`srAlgorithmType` 推荐使用 `RNMonetConstant`：`SR_ALGORITHM_TYPE_STANDARD` / `SR_ALGORITHM_TYPE_PROFESSIONAL_HIGH_QUALITY` / `SR_ALGORITHM_TYPE_PROFESSIONAL_FAST`。
 
-### 组件
+### 组件 `RNPlayerView`
 
-- `RNPlayerView`  
-  原生播放器容器，必须用 ref 传给控制器绑定：`const ref = useRef(null); <RNPlayerView ref={ref} />`
+- 原生播放器容器，必须通过 `ref` 或 `findNodeHandle` 传给控制器绑定。
+- 额外可选属性：`resizeMode?: 'contain' | 'cover'`，`videoWidth?`，`videoHeight?`。
+- 示例：`const ref = useRef(null); <RNPlayerView ref={ref} style={{ height: 480 }} resizeMode="cover" />`
 
 ### 短视频控制器 `RNPlayerShortController`
 
-| 方法 | 说明 |
-| --- | --- |
-| `setModels(sources: RNVideoSource[])` / `appendModels(...)` | 重置/追加列表数据 |
-| `bindVodPlayer(viewRef, index)` | 绑定指定索引到某个 `RNPlayerView`，返回 `TUIVodPlayerController` |
-| `preCreateVodPlayer(viewRef, index)` | 预绑定相邻项以加速切换 |
-| `setVodStrategy(strategy)` | 设置渲染模式、预下载/预加载、SR 等策略 |
-| `startCurrent()` | 开始当前索引播放 |
-| `setVideoLoop(isLoop)` | 设置循环 |
-| `switchResolution(resolution, switchType)` | 切换清晰度（配合 `getSupportResolution` 使用） |
-| `release()` | 释放所有播放器/资源 |
+列表级控制器；每个列表实例化一个，页面卸载时调用 `release()`（多次调用安全）。
+
+| 方法                                       | 参数                                       | 返回                              | 说明                                                    |
+| ------------------------------------------ | ------------------------------------------ | --------------------------------- | ------------------------------------------------------- |
+| `setModels(sources)`                       | `RNVideoSource[]`                          | `Promise<number>`                 | 重置播放列表                                            |
+| `appendModels(sources)`                    | `RNVideoSource[]`                          | `Promise<number>`                 | 追加播放列表                                            |
+| `bindVodPlayer(viewRef, index)`            | `ref` / `findNodeHandle` / `viewTag`，索引 | `Promise<TUIVodPlayerController>` | 绑定指定索引到 `RNPlayerView`，返回单个播放器控制器     |
+| `preCreateVodPlayer(viewRef, index)`       | 同上                                       | `Promise<void>`                   | 预绑定邻接项，减少滑动延迟                              |
+| `setVodStrategy(strategy)`                 | `RNPlayerVodStrategy`                      | `Promise<void>`                   | 未填字段按默认值补齐（见下表）                          |
+| `startCurrent()`                           | -                                          | `Promise<number>`                 | 开始当前索引播放（需先绑定）                            |
+| `setVideoLoop(isLoop)`                     | `boolean`                                  | `Promise<void>`                   | 开启/关闭循环                                           |
+| `switchResolution(resolution, switchType)` | `number`, `RNTUIResolutionType`            | `Promise<void>`                   | 列表级切清晰度，`switchType` 建议用 `TUIResolutionType` |
+| `release()`                                | -                                          | `Promise<void>`                   | 释放 native 短视频控制器及缓存                          |
+
+**`RNPlayerVodStrategy` 默认值**（`serializeVodStrategy` 自动填充）：
+
+| 字段                    | 默认值       | 说明                         |
+| ----------------------- | ------------ | ---------------------------- |
+| `preloadCount`          | `3`          | 预创建/预加载数量            |
+| `preDownloadSize`       | `1`          | 预下载个数                   |
+| `preloadBufferSizeInMB` | `0.5`        | 预加载缓冲大小               |
+| `maxBufferSize`         | `10`         | 最大缓冲大小                 |
+| `preferredResolution`   | `720 * 1280` | 期望分辨率                   |
+| `progressInterval`      | `500`        | 进度事件间隔（ms）           |
+| `renderMode`            | `1`          | LiteAV 渲染模式              |
+| `enableSuperResolution` | `false`      | 是否启用 SR（需 Monet 授权） |
 
 ### 单个播放器控制器 `TUIVodPlayerController`
 
-- 播控：`startPlay(source)`, `pause()`, `resume()`, `seekTo(time)`  
-  速率/静音/镜像/渲染：`setRate(rate)`, `setMute(mute)`, `setMirror(mirror)`, `setRenderMode(mode)`  
-  自定义字符串选项：`setStringOption(value, key)`
-- 清晰度：`getSupportResolution()`，`switchResolution(resolution, switchType?)`
-- 字幕：`selectSubtitleTrack(trackIndex)`（-1 隐藏）
-- 查询：`getDuration()`, `getCurrentPlayTime()`, `isPlaying()`
-- 生命周期：`release()`
-- 事件：`addListener({ onSubtitleTracksUpdate, onVodPlayerEvent, onVodControllerBind, onVodControllerUnBind, onRcvFirstIframe, onPlayBegin, onPlayEnd })`
+由 `bindVodPlayer` 返回，绑定到具体的 `RNPlayerView`。内部维护 `playerState`（`INIT/PLAYING/PAUSE/LOADING/END`），事件驱动更新。
 
-### `RNVideoSource` 关键字段
+| 方法                                                                     | 作用                                           |
+| ------------------------------------------------------------------------ | ---------------------------------------------- |
+| `startPlay(source)`                                                      | 手动播放指定源（一般由短视频控制器驱动）       |
+| `pause()` / `resume()`                                                   | 暂停 / 恢复                                    |
+| `seekTo(time)`                                                           | 跳转到指定秒数                                 |
+| `setRate(rate)` / `setMute(mute)`                                        | 倍速、静音                                     |
+| `setMirror(mirror)` / `setRenderMode(renderMode)`                        | 镜像、渲染模式                                 |
+| `setStringOption(value, key)`                                            | 透传字符串配置到原生                           |
+| `getSupportResolution()`                                                 | 获取清晰度/码率列表（`RNPlayerBitrateItem[]`） |
+| `switchResolution(resolution, switchType?)`                              | 切换清晰度，默认 `TUIResolutionType.CURRENT`   |
+| `selectSubtitleTrack(trackIndex)`                                        | 选择字幕轨道，`-1` 隐藏                        |
+| `getDuration()` / `getCurrentPlayTime()` / `isPlaying()`                 | 查询时长、进度、播放状态                       |
+| `addListener(listener)` / `removeListener(listener)` / `clearListener()` | 管理监听器                                     |
+| `release()`                                                              | 释放当前播放器并清理缓存                       |
 
-- 播放源：`videoURL` 或 `fileId`（配 `appId`/`pSign`）
+**监听器 `RNVodControlListener`**：
+
+| 回调                                            | 触发时机                                 |
+| ----------------------------------------------- | ---------------------------------------- |
+| `onVodControllerBind` / `onVodControllerUnBind` | 控制器与 `RNPlayerView` 绑定/解绑        |
+| `onRcvFirstIframe`                              | 收到首帧（`PLAY_EVT_RCV_FIRST_I_FRAME`） |
+| `onPlayBegin` / `onPlayEnd`                     | 开始 / 完成播放                          |
+| `onVodPlayerEvent`                              | 原始 `TXVodPlayEvent` 事件包             |
+| `onSubtitleTracksUpdate(tracks)`                | 字幕轨道更新                             |
+
+### 源数据 `RNVideoSource`
+
+- 播放源：`videoURL` 或 `fileId`（配 `appId`/`pSign`）；`isAutoPlay` 默认 `true`。
 - 画面：`coverPictureUrl`
-- 字幕：`subtitleSources?: { url; mimeType; name? }[]`（需要 LiteAV Premium 版本支持原生字幕轨道）
-- 其他：`extInfo` 自定义透传，`isAutoPlay` 自动播放
+- 字幕：`subtitleSources?: { url; mimeType; name? }[]`（Premium 版本支持原生轨道，不传则为 `null`）
+- 其他：`extInfo` 透传到原生层。
 
-### 字幕现状（务必阅读）
+### 常量与事件
 
-- 原生字幕：`onSubtitleTracksUpdate` 会在轨道到达时触发，`selectSubtitleTrack(idx)` 将原生 `TXSubtitleView` 绑定到播放器。需要 LiteAV Premium 才有字幕轨道。
-- 示例 App：为了避免原生层级问题，示例默认 `selectSubtitleTrack(-1)` 关闭原生字幕，并在 RN 覆盖层自行解析渲染 `subtitleSources[0]`（见 `example/src/App.tsx` 的自绘逻辑）。如果你要启用原生字幕，请移除该行并在轨道回调中调用 `selectSubtitleTrack`。
-- iOS：目前仅暴露字幕相关 API，原生渲染未完全打通，推荐使用 RN 覆盖层自绘。
-- 自定义样式：原生 `TXSubtitleView` 样式能力有限，若需自定义字号/颜色/背景，建议使用 RN 自绘字幕（参考示例）。
+- `RNMonetConstant`：`SR_ALGORITHM_TYPE_STANDARD` / `SR_ALGORITHM_TYPE_PROFESSIONAL_HIGH_QUALITY` / `SR_ALGORITHM_TYPE_PROFESSIONAL_FAST`。
+- `TUIResolutionType`：`GLOBAL = -1`、`CURRENT = -2`，用于 `switchResolution` 的 `switchType`。
+- `TXVodPlayEvent`：封装 LiteAV 播放事件码，常用如 `PLAY_EVT_RCV_FIRST_I_FRAME`、`PLAY_EVT_PLAY_BEGIN`、`PLAY_EVT_PLAY_END`、`PLAY_EVT_PLAY_LOADING`、`PLAY_EVT_VOD_LOADING_END`、`PLAY_ERR_NET_DISCONNECT`；事件包中键名如 `EVT_EVENT`/`event`、`EVT_TIME`、`EVT_PLAY_PROGRESS_MS`、`EVT_PLAY_DURATION_MS` 可直接读取。
+- 事件总线（`TxplayerEventEmitter`）：事件名 `EVENT_PLAY_EVENT`、`EVENT_CONTROLLER_BIND`、`EVENT_CONTROLLER_UNBIND`、`EVENT_VIEW_DISPOSED`、`EVENT_SUBTITLE_TRACKS`。
 
-### 清晰度切换示例
+### 字幕使用说明
+
+1. 在 `RNVideoSource.subtitleSources` 中配置字幕地址与 MIME。
+2. 监听 `onSubtitleTracksUpdate` 获取原生轨道列表。
+3. 调用 `selectSubtitleTrack(trackIndex)` 选择轨道，传 `-1` 隐藏。
+4. Android 默认使用原生 `TXSubtitleView` 渲染；示例 App 为避免层级问题默认关闭原生字幕并在 RN 覆盖层自绘。iOS 暂时仅暴露 API，建议自绘。
+
+### 清晰度 & 超分示例
 
 ```ts
+// 获取并切换清晰度
 const items = await vodController.getSupportResolution();
-// 选择一档分辨率（SDK 返回的分辨率值或 bitrate item 的 index）
 await vodController.switchResolution(items[0]?.index ?? 0);
+
+// 开启超分（需 Monet 授权）
+await setMonetAppInfo(
+  APP_ID,
+  AUTH_ID,
+  RNMonetConstant.SR_ALGORITHM_TYPE_STANDARD
+);
+await shortController.setVodStrategy({ enableSuperResolution: true });
 ```
 
 ## 常见注意事项

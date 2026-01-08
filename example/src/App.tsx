@@ -430,9 +430,8 @@ export default function App() {
     async function initPlayer() {
       try {
         await setTUIPlayerConfig({
-          licenseUrl:
-            'https://1377187151.trtcube-license.cn/license/v2/1377187151_1/v_cube.license',
-          licenseKey: '4ddf62fce4de0a8fe505415a45a27823',
+          licenseUrl: 'YOUR_LICENSE_URL',
+          licenseKey: 'YOUR_LICENSE_KEY',
           enableLog: true,
         });
         const controller = new RNPlayerShortController();
