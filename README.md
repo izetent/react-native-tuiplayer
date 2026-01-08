@@ -1,10 +1,9 @@
 # react-native-txplayer
 
-React Native bindings for [Tencent Cloud TUIPlayerKit](https://www.tencentcloud.com/document/product/266/60790) short‑video feed.  
-This package mirrors the official RN plugin (`TUIPlayerKit_Flutter`) and exposes the same short‑video experience (ultra fast first frame, preload & SR strategy, scroll feed binding).
+React Native 封装了 [腾讯云 TUIPlayerKit](https://www.tencentcloud.com/document/product/266/60790) 的短视频播放能力，提供超快首帧、预下载/超分策略、滚动列表绑定等体验，与官方 RN 插件（`TUIPlayerKit_Flutter`）保持一致。
 
-> **Important:** TUIPlayer requires a valid Tencent Cloud license.  
-> Request a trial or production license in the Tencent Cloud console and configure it through `setTUIPlayerConfig` before creating controllers.
+> **重要：**TUIPlayer 需要有效的腾讯云 License。  
+> 请在腾讯云控制台申请试用或正式 License，并在创建任何控制器前调用 `setTUIPlayerConfig` 完成配置。
 
 ## Installation
 
