@@ -253,10 +253,14 @@ export function serializeVideoSources(
 export function serializeVodStrategy(
   strategy?: RNPlayerVodStrategy
 ): NativeVodStrategy {
-  return {
+  const merged: NativeVodStrategy = {
     ...DEFAULT_VOD_STRATEGY,
     ...(strategy ?? {}),
   };
+  if (strategy?.preferredResolution == null) {
+    delete (merged as { preferredResolution?: number }).preferredResolution;
+  }
+  return merged;
 }
 
 export function resolveViewTag(handle: RNPlayerViewHandle): number {

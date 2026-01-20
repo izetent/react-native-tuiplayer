@@ -83,7 +83,16 @@ public class RNVodController
 
   @Override
   public void onPlayerControllerUnBind(TUIPlayerController playerController) {
+    if (playerController != null) {
+      try {
+        playerController.removePlayerObserver(this);
+      } catch (Exception ignored) {
+      }
+    }
     controller = null;
+    curSource = null;
+    lastSubtitleTracks.clear();
+    selectedSubtitleTrack = -1;
     parentView.hideSubtitleLayer();
     parentView.resetVideoSize();
     sizeRetryCount = 0;
@@ -211,9 +220,23 @@ public class RNVodController
 
   public void release() {
     onShortVideoDestroyedInternal();
-    if (curSource != null) {
-      curSource.attachView(null);
+    if (controller != null) {
+      try {
+        controller.removePlayerObserver(this);
+      } catch (Exception ignored) {
+      }
     }
+    controller = null;
+    TUIVideoSource source = curSource;
+    curSource = null;
+    lastSubtitleTracks.clear();
+    selectedSubtitleTrack = -1;
+    if (source != null) {
+      source.attachView(null);
+    }
+    parentView.hideSubtitleLayer();
+    parentView.resetVideoSize();
+    sizeRetryCount = 0;
   }
 
   @Override

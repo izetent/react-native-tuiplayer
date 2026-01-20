@@ -46,8 +46,8 @@ public class RNShortEngine implements RNShortEngineObserver {
   }
 
   public void setMonetAppInfo(long appId, int authId, int srType) {
-    TUIPlayerLog.i(TAG, "init monet app info");
-    setAppInfoReflectively(appId, authId, srType);
+    // Super resolution/Monet disabled for now to avoid TSR dependency.
+    TUIPlayerLog.w(TAG, "setMonetAppInfo ignored: super resolution is disabled in this build.");
   }
 
   @Override

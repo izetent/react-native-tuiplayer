@@ -2,7 +2,6 @@
 
 #import <TUIPlayerCore/TUIPlayerCore-umbrella.h>
 #import "RNConstant.h"
-#import "MonetHelper.h"
 
 static NSInteger rn_controller_seed = 0;
 
@@ -54,8 +53,8 @@ static NSInteger rn_controller_seed = 0;
 - (void)setMonetAppInfoWithAppId:(NSInteger)appId
                            authId:(NSInteger)authId
                 srAlgorithmType:(NSInteger)srAlgorithmType {
-  NSString *appIdStr = [NSString stringWithFormat:@"%@", @(appId)];
-  [MonetHelper setAppInfo:appIdStr authId:(int)authId algorithmType:(int)srAlgorithmType];
+  // Super resolution/Monet disabled for now to avoid TSR dependency.
+  NSLog(@"[react-native-tuiplayer] setMonetAppInfo ignored: super resolution is disabled in this build.");
 }
 
 - (void)onRelease:(NSUInteger)controllerId {

@@ -1,4 +1,4 @@
-# react-native-txplayer 使用指南
+# react-native-tuiplayer 使用指南
 
 React Native 版的 [Tencent Cloud TUIPlayerKit](https://www.tencentcloud.com/document/product/266/60790) 短视频体验。组件封装 RN 插件：提供 Feed 类竖屏短视频、首帧秒开、预加载以及超分策略等能力。
 
@@ -7,18 +7,32 @@ React Native 版的 [Tencent Cloud TUIPlayerKit](https://www.tencentcloud.com/do
 ## 1. 安装与构建准备
 
 ```sh
-yarn add react-native-txplayer
+yarn add react-native-tuiplayer
 # iOS 额外执行
 cd ios && pod install
 ```
 
 - **Android**：库自带 `.aar` 依赖（`android/libs/*.aar`）和 `LiteAVSDK_Player_Premium`，通过 Gradle 自动拉取。
 - **iOS**：`Txplayer.podspec` 会为你下载 LiteAV SDK。若你的项目未开启自动 Pods，同步 `example/react-native.config.js` 中对依赖的 `platforms` 声明。
+- **Android 仓库模式注意**：如果 app 的 `settings.gradle` 使用了
+  `dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS) }`
+  或 `FAIL_ON_PROJECT_REPOS`，需要在 `settings.gradle` 中添加 `flatDir`（路径按项目实际位置调整）：
+
+```gradle
+dependencyResolutionManagement {
+  repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+  repositories {
+    google()
+    mavenCentral()
+    flatDir { dirs("$rootDir/../node_modules/react-native-tuiplayer/android/libs") }
+  }
+}
+```
 
 ## 2. 初始化流程
 
 1. **配置 License**：应用启动时调用 `setTUIPlayerConfig`。
-2. **（可选）超级分辨率**：如果购买了 Monet 授权，调用 `setMonetAppInfo(appId, authId, srAlgorithmType)` 并在策略中启用 `enableSuperResolution`。
+2. **（可选）超级分辨率**：当前版本已禁用超分相关逻辑（`setMonetAppInfo`/`enableSuperResolution` 不生效）。
 3. **创建控制器**：列表页面创建 `RNPlayerShortController`，并在离开页面时调用 `release`。
 4. **绑定视图**：将 `RNPlayerView` 渲染在列表 Cell 中，通过 `bindVodPlayer`/`preCreateVodPlayer` 绑定 `viewTag`。
 
@@ -31,7 +45,7 @@ import {
   RNPlayerView,
   setTUIPlayerConfig,
   RNVideoSource,
-} from 'react-native-txplayer';
+} from 'react-native-tuiplayer';
 
 const SOURCES: RNVideoSource[] = [
   { videoURL: 'https://liteavapp.qcloud.com/general/vod_demo/vod-demo.mp4' },
@@ -78,11 +92,7 @@ export default function FeedPlayer() {
 
 ### `setMonetAppInfo(appId, authId, srAlgorithmType)`
 
-初始化 Monet 超级分辨率。`srAlgorithmType` 可用 `RNMonetConstant` 中的常量：
-
-- `SR_ALGORITHM_TYPE_STANDARD`
-- `SR_ALGORITHM_TYPE_PROFESSIONAL_HIGH_QUALITY`
-- `SR_ALGORITHM_TYPE_PROFESSIONAL_FAST`
+当前版本已禁用超分相关逻辑（调用不会生效）。
 
 ### `RNPlayerShortController`
 
@@ -107,10 +117,15 @@ export default function FeedPlayer() {
 | `preDownloadSize`       | `1`          | 预下载视频数                 |
 | `preloadBufferSizeInMB` | `0.5`        | 预加载缓冲大小               |
 | `maxBufferSize`         | `10`         | 最大缓冲大小                 |
-| `preferredResolution`   | `720 * 1280` | 期望分辨率                   |
+| `preferredResolution`   | 不设置       | 期望分辨率（传入会锁定清晰度） |
 | `progressInterval`      | `500ms`      | 播放进度回调间隔             |
 | `renderMode`            | `1`          | 对应 LiteAV 渲染模式         |
-| `enableSuperResolution` | `false`      | 是否启用 SR（需 Monet 授权） |
+| `enableSuperResolution` | `false`      | 暂时禁用（不生效）           |
+
+**HLS 自适应注意事项**：
+- 播放地址需要是 master playlist（包含多码率/多清晰度）。
+- 不要设置 `preferredResolution`，自动模式下不要调用 `switchResolution`。
+- 手动切档后可能锁定清晰度，如需恢复自适应可重新绑定/重建播放器。
 
 ### `RNPlayerView`
 
@@ -173,7 +188,7 @@ export default function FeedPlayer() {
 | 现象                            | 处理建议                                                                         |
 | ------------------------------- | -------------------------------------------------------------------------------- |
 | `UnsupportedGenericParserError` | 确保使用 0.1.0+ 版本（Native 类型定义已迁移至 TurboModule spec）                 |
-| Gradle 无法解析 AAR             | 确认 `android/build.gradle` 中的 `libs/*.aar` 未被删除，并在 `android/libs` 存在 |
+| Gradle 无法解析 AAR             | 确认 `android/libs/*.aar` 存在；若使用 `PREFER_SETTINGS`/`FAIL_ON_PROJECT_REPOS`，在 `settings.gradle` 中添加 `flatDir` |
 | `TUI_ERROR_INVALID_LICENSE`     | 检查 `licenseUrl`/`licenseKey` 是否匹配产品环境，或更换新证书                    |
 | SR 不生效                       | 已调用 `setMonetAppInfo` 且策略 `enableSuperResolution=true`，需要真实设备验证   |
 

@@ -22,12 +22,12 @@ import {
   RNPlayerView,
   setTUIPlayerConfig,
   TUIVodPlayerController,
-} from 'react-native-txplayer';
+} from 'react-native-tuiplayer';
 import type {
   RNPlayerBitrateItem,
   RNVideoSource,
   RNVodEvent,
-} from 'react-native-txplayer';
+} from 'react-native-tuiplayer';
 import { parseSubtitles, type SubtitleCue } from './subtitleParser';
 
 const VIDEO_URL =

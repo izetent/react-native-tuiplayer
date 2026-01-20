@@ -128,13 +128,14 @@ public final class RNTransformer {
       if (map.hasKey("renderMode") && map.getType("renderMode") != ReadableType.Null) {
         builder.setRenderMode(map.getInt("renderMode"));
       }
-      if (map.hasKey("enableSuperResolution") && map.getType("enableSuperResolution") != ReadableType.Null) {
-        boolean enableSR = map.getBoolean("enableSuperResolution");
-        builder.setSuperResolutionMode(
-            enableSR
-                ? TUIConstants.TUISuperResolution.SUPER_RESOLUTION_ASR
-                : TUIConstants.TUISuperResolution.SUPER_RESOLUTION_NONE);
-      }
+      // Super resolution disabled for now to avoid TSR dependency.
+      // if (map.hasKey("enableSuperResolution") && map.getType("enableSuperResolution") != ReadableType.Null) {
+      //   boolean enableSR = map.getBoolean("enableSuperResolution");
+      //   builder.setSuperResolutionMode(
+      //       enableSR
+      //           ? TUIConstants.TUISuperResolution.SUPER_RESOLUTION_ASR
+      //           : TUIConstants.TUISuperResolution.SUPER_RESOLUTION_NONE);
+      // }
     }
     builder.setPrePlayStrategy(TUIConstants.TUIPrePlayStrategy.TUIPrePlayStrategyAdjacent);
     return builder.build();

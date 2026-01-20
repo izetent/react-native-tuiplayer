@@ -1,6 +1,17 @@
 pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
 plugins { id("com.facebook.react.settings") }
 
+dependencyResolutionManagement {
+  repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+  repositories {
+    google()
+    mavenCentral()
+    flatDir {
+      dirs("$rootDir/../../android/libs")
+    }
+  }
+}
+
 def autolinkLockFiles = files(
   "../yarn.lock",
   "../package-lock.json",

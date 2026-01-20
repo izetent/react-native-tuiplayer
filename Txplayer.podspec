@@ -11,7 +11,7 @@ Pod::Spec.new do |s|
   s.authors      = package["author"]
 
   s.platforms    = { :ios => min_ios_version_supported }
-  s.source       = { :git => "https://github.com/Mahuoooo/react-native-txplayer.git", :tag => "#{s.version}" }
+  s.source       = { :git => "https://github.com/Mahuoooo/react-native-tuiplayer.git", :tag => "#{s.version}" }
 
   s.platforms    = { :ios => min_ios_version_supported }
   s.source_files = "ios/**/*.{h,m,mm,swift,cpp}"
@@ -23,6 +23,7 @@ Pod::Spec.new do |s|
   s.dependency "TXLiteAVSDK_Player_Premium"
   s.dependency "TUIPlayerCore/Player_Premium"
   s.dependency "TUIPlayerShortVideo/Player_Premium"
-  s.dependency "TXCMonetPlugin"
-  s.dependency "tsrClient"
+  # Super resolution/Monet disabled for now to avoid TSR dependency.
+  # s.dependency "TXCMonetPlugin"
+  # s.dependency "tsrClient"
 end

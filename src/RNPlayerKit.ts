@@ -11,5 +11,11 @@ export async function setMonetAppInfo(
   authId: number,
   srAlgorithmType: number
 ) {
-  await NativeTxplayer.setMonetAppInfo(appId, authId, srAlgorithmType);
+  void appId;
+  void authId;
+  void srAlgorithmType;
+  console.warn(
+    '[react-native-tuiplayer] setMonetAppInfo ignored: super resolution is disabled in this build.'
+  );
+  return;
 }

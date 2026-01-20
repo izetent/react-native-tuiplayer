@@ -1,5 +1,6 @@
 package com.txplayer
 
+import android.util.Log
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -38,7 +39,8 @@ class TxplayerModule(reactContext: ReactApplicationContext) :
 
   override fun setMonetAppInfo(appId: Double, authId: Double, srAlgorithmType: Double, promise: Promise) {
     try {
-      shortEngine.setMonetAppInfo(appId.toLong(), authId.toInt(), srAlgorithmType.toInt())
+      // Super resolution/Monet disabled for now to avoid TSR dependency.
+      Log.w(NAME, "setMonetAppInfo ignored: super resolution is disabled in this build.")
       promise.resolve(null)
     } catch (error: Throwable) {
       promise.reject("E_MONET", error)

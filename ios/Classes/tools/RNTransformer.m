@@ -74,8 +74,8 @@
   if (renderMode) {
     strategy.renderMode = renderMode.integerValue;
   }
-  NSNumber *enableSR = dict[@"enableSuperResolution"];
-  strategy.enableSuperResolution = enableSR ? enableSR.boolValue : NO;
+  // Super resolution disabled for now to avoid TSR dependency.
+  strategy.enableSuperResolution = NO;
   return strategy;
 }
 

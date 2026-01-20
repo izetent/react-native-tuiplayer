@@ -2,7 +2,7 @@
   "compilerOptions": {
     "rootDir": ".",
     "paths": {
-      "react-native-txplayer": ["./src/index"]
+      "react-native-tuiplayer": ["./src/index"]
     },
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,

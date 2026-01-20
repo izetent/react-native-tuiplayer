@@ -50,9 +50,8 @@
                resolve:(RCTPromiseResolveBlock)resolve
                 reject:(RCTPromiseRejectBlock)reject {
   @try {
-    [self.shortEngine setMonetAppInfoWithAppId:(NSInteger)appId
-                                        authId:(NSInteger)authId
-                             srAlgorithmType:(NSInteger)srAlgorithmType];
+    // Super resolution/Monet disabled for now to avoid TSR dependency.
+    NSLog(@"[react-native-tuiplayer] setMonetAppInfo ignored: super resolution is disabled in this build.");
     resolve(nil);
   } @catch (NSException *exception) {
     reject(@"E_MONET", exception.reason, nil);

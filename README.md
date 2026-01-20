@@ -1,4 +1,4 @@
-# react-native-txplayer
+# react-native-tuiplayer
 
 React Native 封装了 [腾讯云 TUIPlayerKit](https://www.tencentcloud.com/document/product/266/60790) 的短视频播放能力，提供超快首帧、预下载/超分策略、滚动列表绑定等体验，与官方 RN 插件（`TUIPlayerKit_Flutter`）保持一致。
 
@@ -8,12 +8,27 @@ React Native 封装了 [腾讯云 TUIPlayerKit](https://www.tencentcloud.com/doc
 ## Installation
 
 ```sh
-yarn add react-native-txplayer
+yarn add react-native-tuiplayer
 # iOS
 cd ios && pod install
 ```
 
-The package pulls the required native SDKs (`TXLiteAVSDK_Player_Premium`, `TUIPlayerCore`, `TUIPlayerShortVideo`, `TXCMonetPlugin`, `tsrClient`) automatically through Gradle/CocoaPods.
+The package pulls the required native SDKs (`TXLiteAVSDK_Player_Premium`, `TUIPlayerCore`, `TUIPlayerShortVideo`) automatically through Gradle/CocoaPods.
+
+> Android 说明：如果你的 app 在 `settings.gradle` 中开启了
+> `dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS) }`
+> 或 `FAIL_ON_PROJECT_REPOS`，需要把以下 `flatDir` 写到 app 的 `settings.gradle`（路径按项目实际位置调整）：
+>
+> ```gradle
+> dependencyResolutionManagement {
+>   repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+>   repositories {
+>     google()
+>     mavenCentral()
+>     flatDir { dirs("$rootDir/../node_modules/react-native-tuiplayer/android/libs") }
+>   }
+> }
+> ```
 
 ## Quick start
 
@@ -24,7 +39,7 @@ import {
   RNPlayerView,
   setTUIPlayerConfig,
   RNVideoSource,
-} from 'react-native-txplayer';
+} from 'react-native-tuiplayer';
 
 const SOURCES: RNVideoSource[] = [
   { videoURL: 'https://liteavapp.qcloud.com/general/vod_demo/vod-demo.mp4' },
@@ -67,7 +82,7 @@ export default function FeedPlayer() {
   | `licenseKey` | License Key |
   | `enableLog?` | 是否输出原生日志（默认 `true`） |
 - `setMonetAppInfo(appId, authId, srAlgorithmType)`  
-  可选，开启 Monet 超级分辨率；`srAlgorithmType` 推荐使用 `RNMonetConstant`：`SR_ALGORITHM_TYPE_STANDARD` / `SR_ALGORITHM_TYPE_PROFESSIONAL_HIGH_QUALITY` / `SR_ALGORITHM_TYPE_PROFESSIONAL_FAST`。
+  目前已禁用超分相关逻辑（调用不会生效）；`srAlgorithmType` 仅保留类型兼容。
 
 ### 组件 `RNPlayerView`
 
@@ -99,10 +114,10 @@ export default function FeedPlayer() {
 | `preDownloadSize`       | `1`          | 预下载个数                   |
 | `preloadBufferSizeInMB` | `0.5`        | 预加载缓冲大小               |
 | `maxBufferSize`         | `10`         | 最大缓冲大小                 |
-| `preferredResolution`   | `720 * 1280` | 期望分辨率                   |
+| `preferredResolution`   | 不设置       | 期望分辨率（传入会锁定清晰度） |
 | `progressInterval`      | `500`        | 进度事件间隔（ms）           |
 | `renderMode`            | `1`          | LiteAV 渲染模式              |
-| `enableSuperResolution` | `false`      | 是否启用 SR（需 Monet 授权） |
+| `enableSuperResolution` | `false`      | 暂时禁用（不生效）           |
 
 ### 单个播放器控制器 `TUIVodPlayerController`
 
@@ -142,7 +157,7 @@ export default function FeedPlayer() {
 
 ### 常量与事件
 
-- `RNMonetConstant`：`SR_ALGORITHM_TYPE_STANDARD` / `SR_ALGORITHM_TYPE_PROFESSIONAL_HIGH_QUALITY` / `SR_ALGORITHM_TYPE_PROFESSIONAL_FAST`。
+- `RNMonetConstant`：`SR_ALGORITHM_TYPE_STANDARD` / `SR_ALGORITHM_TYPE_PROFESSIONAL_HIGH_QUALITY` / `SR_ALGORITHM_TYPE_PROFESSIONAL_FAST`（暂不生效）。
 - `TUIResolutionType`：`GLOBAL = -1`、`CURRENT = -2`，用于 `switchResolution` 的 `switchType`。
 - `TXVodPlayEvent`：封装 LiteAV 播放事件码，常用如 `PLAY_EVT_RCV_FIRST_I_FRAME`、`PLAY_EVT_PLAY_BEGIN`、`PLAY_EVT_PLAY_END`、`PLAY_EVT_PLAY_LOADING`、`PLAY_EVT_VOD_LOADING_END`、`PLAY_ERR_NET_DISCONNECT`；事件包中键名如 `EVT_EVENT`/`event`、`EVT_TIME`、`EVT_PLAY_PROGRESS_MS`、`EVT_PLAY_DURATION_MS` 可直接读取。
 - 事件总线（`TxplayerEventEmitter`）：事件名 `EVENT_PLAY_EVENT`、`EVENT_CONTROLLER_BIND`、`EVENT_CONTROLLER_UNBIND`、`EVENT_VIEW_DISPOSED`、`EVENT_SUBTITLE_TRACKS`。
@@ -159,21 +174,18 @@ export default function FeedPlayer() {
 ```ts
 // 获取并切换清晰度
 const items = await vodController.getSupportResolution();
-await vodController.switchResolution(items[0]?.index ?? 0);
+if (items[0]) {
+  await vodController.switchResolution(items[0].width * items[0].height);
+}
 
-// 开启超分（需 Monet 授权）
-await setMonetAppInfo(
-  APP_ID,
-  AUTH_ID,
-  RNMonetConstant.SR_ALGORITHM_TYPE_STANDARD
-);
-await shortController.setVodStrategy({ enableSuperResolution: true });
+// 超分能力暂时禁用
 ```
 
 ## 常见注意事项
 
 - **License 先配置**：未配置有效 license 时 `startCurrent()` 会返回 `TUI_ERROR_INVALID_LICENSE`。
 - **资源释放**：页面卸载时调用 `vodController.release()` 和 `shortController.release()`。
+- **HLS 自适应**：确保播放地址是 master playlist（包含多码率），不要设置 `preferredResolution`，自动模式不要调用 `switchResolution`；手动切档后可能锁定清晰度，如需恢复自适应可重新绑定/重建播放器。
 - **依赖版本**：字幕轨道、SR 等能力需要 LiteAV Premium 套件，请确认原生依赖版本满足需求。
 
 ## Contributing

@@ -1,6 +1,6 @@
 {
   "name": "react-native-tuiplayer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "React Native bridge for TUIPlayer Kit short video components.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
@@ -32,7 +32,7 @@
     "!**/.*"
   ],
   "scripts": {
-    "example": "yarn workspace react-native-txplayer-example",
+    "example": "yarn workspace react-native-tuiplayer-example",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
     "prepare": "bob build",
     "typecheck": "tsc",
@@ -47,14 +47,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/izetent/react-native-txplayer.git"
+    "url": "git+https://github.com/izetent/react-native-tuiplayer.git"
   },
   "author": "izetent <izetent@gmail.com> (https://github.com/izetent)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/izetent/react-native-txplayer/issues"
+    "url": "https://github.com/izetent/react-native-tuiplayer/issues"
   },
-  "homepage": "https://github.com/izetent/react-native-txplayer#readme",
+  "homepage": "https://github.com/izetent/react-native-tuiplayer#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },

@@ -45,6 +45,7 @@
 }
 
 - (void)onUnBindController {
+  [self.currentPlayer setDelegate:nil];
   self.currentPlayer = nil;
   [self emitEvent:RN_EVENT_CONTROLLER_UNBIND payload:nil];
 }
@@ -141,6 +142,7 @@
 
 - (void)onShortVideoDestroyed {
   [self.currentPlayer stopPlay];
+  [self.currentPlayer setDelegate:nil];
   self.currentPlayer = nil;
 }
 
