@@ -1,11 +1,12 @@
 #import <Foundation/Foundation.h>
 #import <TUIPlayerShortVideo/TUIPlayerShortVideo-umbrella.h>
+#import <TUIPlayerCore/TUITXVodPlayer.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
 @class RNShortVideoView;
 
-@interface RNVodController : NSObject<TUIShortVideoItemViewDelegate, TUIPlayerVodManagerDelegate, TUIVodObserver>
+@interface RNVodController : NSObject<TUIShortVideoItemViewDelegate, TUIPlayerVodManagerDelegate, TUITXVodPlayerDelegate>
 
 - (instancetype)initWithContainer:(RNShortVideoView *)container;
 - (void)onBindController:(TUITXVodPlayer *)player;

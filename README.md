@@ -13,7 +13,7 @@ yarn add react-native-tuiplayer
 cd ios && pod install
 ```
 
-The package pulls the required native SDKs (`TXLiteAVSDK_Player_Premium`, `TUIPlayerCore`, `TUIPlayerShortVideo`) automatically through Gradle/CocoaPods.
+The package pulls the required native SDKs (`TXLiteAVSDK_Player_Premium`, `TUIPlayerCore`, `TUIPlayerShortVideo`) automatically through Gradle/CocoaPods. For iOS, it prefers the bundled SDKs under `ios/TUIPlayerCoreSDK` and `ios/TUIPlayerShortVideoSDK` when present; if they are missing, CocoaPods falls back to resolving `TUIPlayerCore/Player_Premium` and `TUIPlayerShortVideo/Player_Premium` from your podspec sources. If you also place the LiteAV SDK under `ios/TXLiteAVSDK_Player_Premium`, CocoaPods will use that local SDK and skip `TXLiteAVSDK_Player_Premium` resolution. You can also point to external SDK folders with `TUIPLAYERKIT_IOS_SDK_ROOT` and `TXLITEAVSDK_ROOT` environment variables.
 
 > Android 说明：如果你的 app 在 `settings.gradle` 中开启了
 > `dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS) }`
@@ -159,7 +159,7 @@ export default function FeedPlayer() {
 
 - `RNMonetConstant`：`SR_ALGORITHM_TYPE_STANDARD` / `SR_ALGORITHM_TYPE_PROFESSIONAL_HIGH_QUALITY` / `SR_ALGORITHM_TYPE_PROFESSIONAL_FAST`（暂不生效）。
 - `TUIResolutionType`：`GLOBAL = -1`、`CURRENT = -2`，用于 `switchResolution` 的 `switchType`。
-- `TXVodPlayEvent`：封装 LiteAV 播放事件码，常用如 `PLAY_EVT_RCV_FIRST_I_FRAME`、`PLAY_EVT_PLAY_BEGIN`、`PLAY_EVT_PLAY_END`、`PLAY_EVT_PLAY_LOADING`、`PLAY_EVT_VOD_LOADING_END`、`PLAY_ERR_NET_DISCONNECT`；事件包中键名如 `EVT_EVENT`/`event`、`EVT_TIME`、`EVT_PLAY_PROGRESS_MS`、`EVT_PLAY_DURATION_MS` 可直接读取。
+- `TXVodPlayEvent`：封装 LiteAV 播放事件码，常用如 `PLAY_EVT_RCV_FIRST_I_FRAME`、`PLAY_EVT_PLAY_BEGIN`、`PLAY_EVT_PLAY_END`、`PLAY_EVT_PLAY_LOADING`、`PLAY_EVT_VOD_LOADING_END`、`PLAY_ERR_NET_DISCONNECT`；事件包中键名如 `EVT_EVENT`/`event`、`EVT_TIME`、`EVT_PLAY_PROGRESS`、`EVT_PLAY_DURATION`（统一为秒）可直接读取。
 - 事件总线（`TxplayerEventEmitter`）：事件名 `EVENT_PLAY_EVENT`、`EVENT_CONTROLLER_BIND`、`EVENT_CONTROLLER_UNBIND`、`EVENT_VIEW_DISPOSED`、`EVENT_SUBTITLE_TRACKS`。
 
 ### 字幕使用说明

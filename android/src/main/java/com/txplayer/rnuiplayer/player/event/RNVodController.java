@@ -37,6 +37,7 @@ public class RNVodController
   // TX/TUI SDK render mode constants: 0 = FULL_FILL_SCREEN, 1 = ADJUST_RESOLUTION.
   private static final int RENDER_MODE_FIT = 1; // 等比
   private static final int RENDER_MODE_FILL = 0; // 填充
+  private static final double MS_PER_SECOND = 1000.0;
 
   private final ReactContext reactContext;
   private final RNShortVideoItemView parentView;
@@ -241,6 +242,7 @@ public class RNVodController
 
   @Override
   public void onPlayEvent(ITUIVodPlayer player, int event, Bundle bundle) {
+    normalizePlayEventTime(bundle);
     Map<String, Object> payload = RNUtils.getParams(event, bundle);
     maybeUpdateVideoSize(bundle);
     emitEvent(RNConstant.EVENT_PLAY_EVENT, payload);
@@ -282,6 +284,7 @@ public class RNVodController
 
   @Override
   public void onError(int i, String s, Bundle bundle) {
+    normalizePlayEventTime(bundle);
     Map<String, Object> payload = RNUtils.getParams(i, bundle);
     emitEvent(RNConstant.EVENT_PLAY_EVENT, payload);
   }
@@ -462,5 +465,40 @@ public class RNVodController
         parentView.postDelayed(this::updateSizeFromPlayer, 100);
       }
     }
+  }
+
+  private static void normalizePlayEventTime(@Nullable Bundle bundle) {
+    if (bundle == null || bundle.isEmpty()) {
+      return;
+    }
+    normalizeMsPair(bundle, "EVT_PLAY_PROGRESS_MS", "EVT_PLAY_PROGRESS");
+    normalizeMsPair(bundle, "EVT_PLAY_DURATION_MS", "EVT_PLAY_DURATION");
+    normalizeMsPair(bundle, "EVT_PLAYABLE_DURATION_MS", "EVT_PLAYABLE_DURATION");
+    normalizeMsPair(bundle, "EVT_PLAY_PDT_TIME_MS", "EVT_PLAY_PDT_TIME");
+  }
+
+  private static void normalizeMsPair(Bundle bundle, String msKey, String secKey) {
+    Double msValue = getNumber(bundle, msKey);
+    if (msValue != null) {
+      bundle.putDouble(secKey, msValue / MS_PER_SECOND);
+    }
+    bundle.remove(msKey);
+  }
+
+  private static Double getNumber(Bundle bundle, String key) {
+    Object value = bundle.get(key);
+    if (value instanceof Number) {
+      return ((Number) value).doubleValue();
+    }
+    if (value instanceof String) {
+      try {
+        double parsed = Double.parseDouble((String) value);
+        if (Double.isFinite(parsed)) {
+          return parsed;
+        }
+      } catch (NumberFormatException ignored) {
+      }
+    }
+    return null;
   }
 }

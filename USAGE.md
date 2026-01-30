@@ -13,7 +13,17 @@ cd ios && pod install
 ```
 
 - **Android**：库自带 `.aar` 依赖（`android/libs/*.aar`）和 `LiteAVSDK_Player_Premium`，通过 Gradle 自动拉取。
-- **iOS**：`Txplayer.podspec` 会为你下载 LiteAV SDK。若你的项目未开启自动 Pods，同步 `example/react-native.config.js` 中对依赖的 `platforms` 声明。
+- **iOS**：默认通过 CocoaPods 拉取 `TXLiteAVSDK_Player_Premium`。如果 `ios/TUIPlayerCoreSDK` 与 `ios/TUIPlayerShortVideoSDK` 存在，则优先使用本地 SDK；否则会尝试从 podspec 源解析 `TUIPlayerCore/Player_Premium` 与 `TUIPlayerShortVideo/Player_Premium`。若 `ios/TXLiteAVSDK_Player_Premium` 存在，则优先使用本地 LiteAV SDK 并跳过 `TXLiteAVSDK_Player_Premium` 解析。也可以设置 `TUIPLAYERKIT_IOS_SDK_ROOT` 与 `TXLITEAVSDK_ROOT` 指向外部 SDK 目录。若你的项目未开启自动 Pods，同步 `example/react-native.config.js` 中对依赖的 `platforms` 声明。
+
+> iOS SDK 更新：将下载的 `TUIPlayerCoreSDK` 与 `TUIPlayerShortVideoSDK` 替换到 `node_modules/react-native-tuiplayer/ios/`（保持 `SDKProduct` 目录结构）。如需本地 LiteAV，放到 `node_modules/react-native-tuiplayer/ios/TXLiteAVSDK_Player_Premium/`，或设置 `TXLITEAVSDK_ROOT` 指向解压后的 SDK 根目录。
+
+示例（使用外部 SDK 目录）：
+```sh
+TUIPLAYERKIT_IOS_SDK_ROOT=/Users/akx/Desktop/npm/tuiplayer/TUIPlayerKit_iOS_V2.1.0.96/SDK \
+TXLITEAVSDK_ROOT=/path/to/TXLiteAVSDK_Player_Premium \
+pod install
+```
+如需启用腾讯云私有 Pod 源，在 `example/ios/Podfile` 中通过 `USE_TENCENT_PODS=1` 打开。
 - **Android 仓库模式注意**：如果 app 的 `settings.gradle` 使用了
   `dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS) }`
   或 `FAIL_ON_PROJECT_REPOS`，需要在 `settings.gradle` 中添加 `flatDir`（路径按项目实际位置调整）：

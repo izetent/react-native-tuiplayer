@@ -9,6 +9,7 @@
 #import <TUIPlayerCore/TUIPlayerCore-umbrella.h>
 #import "RNConstant.h"
 #import "RNViewRegistry.h"
+#import "RNVodController.h"
 #import "RNShortVideoView.h"
 
 @interface RNShortController()
@@ -59,14 +60,14 @@
         ///如果开启了预播放上一个，那么上一个的播放器保持，只清除上上个播放器缓存
         ///如果没有开启，那么上一个播放器缓存及时清除
         long prePreIndex =  curIndex - 2;
-        long preIndex = curIndex - 1;
+        long previousIndex = curIndex - 1;
         long nextIndex = curIndex + 1;
         long nextNextIndex = curIndex + 2;
         [self removeVodPlayerCacheByIndex:curIndex - 3];
         [self removeVodPlayerCacheByIndex:prePreIndex];
         [self removeVodPlayerCacheByIndex:nextNextIndex];
         if (isDonwFlip) {
-            [self removeVodPlayerCacheByIndex:preIndex];
+            [self removeVodPlayerCacheByIndex:previousIndex];
         } else {
             [self removeVodPlayerCacheByIndex:nextIndex];
         }
@@ -92,6 +93,7 @@
     }
     RNShortVideoView *itemView = [RNViewRegistry viewForTag:@(pageViewId)];
     if (nil != itemView) {
+        [itemView ensureItemView];
         TUIPlayerDataModel *dataModel = self.dataArray[index];
         if ([dataModel isKindOfClass:[TUIPlayerVideoModel class]]) {
             TUIPlayerVideoModel* vodModel = [dataModel asVodModel];
@@ -102,7 +104,7 @@
                 TUILOGI(@"start preRender index:%lu", index)
                 if (self.currentIndex == index && [self.vodManager currentVodPlayer]) {
                     TUITXVodPlayer *player = [self.vodManager currentVodPlayer];
-                    if (player.status < TUITXVodPlayerStatusPrepared && player.status > TUITXVodPlayerStatusEnded) {
+                    if (player.status < TUITXVodPlayerStatusPrepared || player.status > TUITXVodPlayerStatusEnded) {
                         TUILOGW(@"prePlay a idle player,index:%lu", index)
                         [self.vodManager prePlayWithModel:vodModel type:1];
 
@@ -149,10 +151,6 @@
                     [videoItemView hiddenCoverImage:YES];
                 }];
                 [videoItemView getPlayer:self.vodManager.currentVodPlayer];
-                if (index == 0) {
-                    self.cachePageIndex = 1;
-                    self.cacheIndex = 1;
-                }
                 if (self.cachePageIndex >= 0 && self.cacheIndex >= 0) {
                     [self bindVideoView:self.cachePageIndex index:self.cacheIndex isPreBind:YES];
                     self.cachePageIndex = -1;
@@ -198,7 +196,7 @@
         [self.vodManager.vodDataManager appendShortVideoModels:models];
         TUIPlayerVideoModel *nextModel = [self getVodModel:self.currentIndex + 1];
         if (nil != nextModel) {
-            [self.preloadManager cancelPreLoadOperationWith:nextModel];
+            [self.vodManager.vodPreLoadManager cancelPreLoadOperationWith:nextModel];
             [self.vodManager prePlayWithModel:nextModel type:1];
         }
         return @(0);
@@ -301,7 +299,15 @@
 static BOOL tuicpa(void){
     Class tpaClass = NSClassFromString(@"TUIPlayerAuth");
     SEL cpaSelector = NSSelectorFromString(@"cpa");
+    if (!tpaClass || ![tpaClass respondsToSelector:cpaSelector]) {
+        TUILOGE(@"[cpa] Missing TUIPlayerAuth or cpa selector.");
+        return NO;
+    }
     IMP cpaImp = [tpaClass methodForSelector:cpaSelector];
+    if (!cpaImp) {
+        TUILOGE(@"[cpa] Failed to load cpa implementation.");
+        return NO;
+    }
     BOOL (*cpaFunc)(id, SEL) = (BOOL (*)(id, SEL))cpaImp;
     BOOL result = cpaFunc(tpaClass, cpaSelector);
     return result;

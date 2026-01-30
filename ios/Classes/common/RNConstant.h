@@ -22,6 +22,7 @@
 #define RN_EVENT_CONTROLLER_BIND @"txplayer.onControllerBind"
 #define RN_EVENT_CONTROLLER_UNBIND @"txplayer.onControllerUnbind"
 #define RN_EVENT_VIEW_DISPOSED @"txplayer.onViewDisposed"
+#define RN_EVENT_SUBTITLE_TRACKS @"txplayer.onSubtitleTracks"
 
 
 #endif /* RNConstant_h */

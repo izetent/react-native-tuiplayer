@@ -6,6 +6,7 @@
 #import "RNEventDispatcher.h"
 #import "RNShortEngine.h"
 #import "RNShortVideoView.h"
+#import "RNVodController.h"
 #import "RNTransformer.h"
 #import "RNViewRegistry.h"
 
@@ -19,6 +20,14 @@
 @implementation Txplayer
 
 @synthesize bridge = _bridge;
+
+- (void)runOnMain:(dispatch_block_t)block {
+  if ([NSThread isMainThread]) {
+    block();
+  } else {
+    dispatch_async(dispatch_get_main_queue(), block);
+  }
+}
 
 - (instancetype)init {
   self = [super init];
@@ -73,8 +82,10 @@
     return;
   }
   NSArray *models = [RNTransformer videoModelsFromArray:sources];
-  NSNumber *result = [controller setModels:models];
-  resolve(result);
+  [self runOnMain:^{
+    NSNumber *result = [controller setModels:models];
+    resolve(result);
+  }];
 }
 
 - (void)shortControllerAppendModels:(double)controllerId
@@ -86,8 +97,10 @@
     return;
   }
   NSArray *models = [RNTransformer videoModelsFromArray:sources];
-  NSNumber *result = [controller appendModels:models];
-  resolve(result);
+  [self runOnMain:^{
+    NSNumber *result = [controller appendModels:models];
+    resolve(result);
+  }];
 }
 
 - (void)shortControllerBindVideoView:(double)controllerId
@@ -99,8 +112,10 @@
   if (!controller) {
     return;
   }
-  [controller bindVideoView:@(viewTag) index:(NSInteger)index];
-  resolve(nil);
+  [self runOnMain:^{
+    [controller bindVideoView:@(viewTag) index:(NSInteger)index];
+    resolve(nil);
+  }];
 }
 
 - (void)shortControllerPreBindVideo:(double)controllerId
@@ -112,8 +127,10 @@
   if (!controller) {
     return;
   }
-  [controller preBindVideo:@(viewTag) index:(NSInteger)index];
-  resolve(nil);
+  [self runOnMain:^{
+    [controller preBindVideo:@(viewTag) index:(NSInteger)index];
+    resolve(nil);
+  }];
 }
 
 - (void)shortControllerSetVodStrategy:(double)controllerId
@@ -125,8 +142,10 @@
     return;
   }
   TUIPlayerVodStrategyModel *model = [RNTransformer strategyFromDictionary:strategy ?: @{}];
-  [controller setVodStrategy:model];
-  resolve(nil);
+  [self runOnMain:^{
+    [controller setVodStrategy:model];
+    resolve(nil);
+  }];
 }
 
 - (void)shortControllerStartCurrent:(double)controllerId
@@ -136,7 +155,9 @@
   if (!controller) {
     return;
   }
-  resolve([controller startCurrent]);
+  [self runOnMain:^{
+    resolve([controller startCurrent]);
+  }];
 }
 
 - (void)shortControllerSetVideoLoop:(double)controllerId
@@ -147,8 +168,10 @@
   if (!controller) {
     return;
   }
-  [controller setVideoLoop:isLoop];
-  resolve(nil);
+  [self runOnMain:^{
+    [controller setVideoLoop:isLoop];
+    resolve(nil);
+  }];
 }
 
 - (void)shortControllerSwitchResolution:(double)controllerId
@@ -160,8 +183,10 @@
   if (!controller) {
     return;
   }
-  [controller switchResolution:(long)resolution switchType:(NSInteger)switchType];
-  resolve(nil);
+  [self runOnMain:^{
+    [controller switchResolution:(long)resolution switchType:(NSInteger)switchType];
+    resolve(nil);
+  }];
 }
 
 - (void)shortControllerRelease:(double)controllerId
@@ -171,8 +196,10 @@
   if (!controller) {
     return;
   }
-  [controller releaseController];
-  resolve(nil);
+  [self runOnMain:^{
+    [controller releaseController];
+    resolve(nil);
+  }];
 }
 
 - (void)vodPlayerStartPlay:(double)viewTag
@@ -184,8 +211,10 @@
     return;
   }
   TUIPlayerVideoModel *model = [RNTransformer videoModelFromDictionary:source ?: @{}];
-  [view.vodController startPlayWithModel:model];
-  resolve(nil);
+  [self runOnMain:^{
+    [view.vodController startPlayWithModel:model];
+    resolve(nil);
+  }];
 }
 
 - (void)vodPlayerPause:(double)viewTag
@@ -195,8 +224,10 @@
   if (!view) {
     return;
   }
-  [view.vodController pause];
-  resolve(nil);
+  [self runOnMain:^{
+    [view.vodController pause];
+    resolve(nil);
+  }];
 }
 
 - (void)vodPlayerResume:(double)viewTag
@@ -206,8 +237,10 @@
   if (!view) {
     return;
   }
-  [view.vodController resume];
-  resolve(nil);
+  [self runOnMain:^{
+    [view.vodController resume];
+    resolve(nil);
+  }];
 }
 
 - (void)vodPlayerSetRate:(double)viewTag
@@ -218,8 +251,10 @@
   if (!view) {
     return;
   }
-  [view.vodController setRate:rate];
-  resolve(nil);
+  [self runOnMain:^{
+    [view.vodController setRate:rate];
+    resolve(nil);
+  }];
 }
 
 - (void)vodPlayerSetMute:(double)viewTag
@@ -230,8 +265,10 @@
   if (!view) {
     return;
   }
-  [view.vodController setMute:mute];
-  resolve(nil);
+  [self runOnMain:^{
+    [view.vodController setMute:mute];
+    resolve(nil);
+  }];
 }
 
 - (void)vodPlayerSeekTo:(double)viewTag
@@ -242,8 +279,10 @@
   if (!view) {
     return;
   }
-  [view.vodController seekToTime:time];
-  resolve(nil);
+  [self runOnMain:^{
+    [view.vodController seekToTime:time];
+    resolve(nil);
+  }];
 }
 
 - (void)vodPlayerSwitchResolution:(double)viewTag
@@ -255,8 +294,10 @@
   if (!view) {
     return;
   }
-  [view.vodController switchResolution:(long)resolution switchType:(NSInteger)switchType];
-  resolve(nil);
+  [self runOnMain:^{
+    [view.vodController switchResolution:(long)resolution switchType:(NSInteger)switchType];
+    resolve(nil);
+  }];
 }
 
 - (void)vodPlayerGetSupportResolution:(double)viewTag
@@ -266,17 +307,19 @@
   if (!view) {
     return;
   }
-  NSArray<TUIPlayerBitrateItem *> *bitrates = [view.vodController getSupportResolution];
-  NSMutableArray *result = [NSMutableArray arrayWithCapacity:bitrates.count];
-  for (TUIPlayerBitrateItem *item in bitrates) {
-    [result addObject:@{
-      @"index" : @(item.index),
-      @"width" : @(item.width),
-      @"height" : @(item.height),
-      @"bitrate" : @(item.bitrate)
-    }];
-  }
-  resolve(result);
+  [self runOnMain:^{
+    NSArray<TUIPlayerBitrateItem *> *bitrates = [view.vodController getSupportResolution];
+    NSMutableArray *result = [NSMutableArray arrayWithCapacity:bitrates.count];
+    for (TUIPlayerBitrateItem *item in bitrates) {
+      [result addObject:@{
+        @"index" : @(item.index),
+        @"width" : @(item.width),
+        @"height" : @(item.height),
+        @"bitrate" : @(item.bitrate)
+      }];
+    }
+    resolve(result);
+  }];
 }
 
 - (void)vodPlayerSetMirror:(double)viewTag
@@ -287,8 +330,10 @@
   if (!view) {
     return;
   }
-  [view.vodController setMirror:mirror];
-  resolve(nil);
+  [self runOnMain:^{
+    [view.vodController setMirror:mirror];
+    resolve(nil);
+  }];
 }
 
 - (void)vodPlayerSetRenderMode:(double)viewTag
@@ -299,14 +344,16 @@
   if (!view) {
     return;
   }
-  if ([view.vodController respondsToSelector:@selector(setRenderMode:)]) {
-    [view.vodController setRenderMode:(NSInteger)renderMode];
-    resolve(nil);
-    return;
-  }
-  reject(@"E_RENDER_MODE_UNSUPPORTED",
-         @"Render mode control is not supported on this platform",
-         nil);
+  [self runOnMain:^{
+    if ([view.vodController respondsToSelector:@selector(setRenderMode:)]) {
+      [view.vodController setRenderMode:(NSInteger)renderMode];
+      resolve(nil);
+      return;
+    }
+    reject(@"E_RENDER_MODE_UNSUPPORTED",
+           @"Render mode control is not supported on this platform",
+           nil);
+  }];
 }
 
 - (void)vodPlayerSetStringOption:(double)viewTag
@@ -318,8 +365,10 @@
   if (!view) {
     return;
   }
-  [view.vodController setStringOptionWithKey:key value:value ?: @""];
-  resolve(nil);
+  [self runOnMain:^{
+    [view.vodController setStringOptionWithKey:key value:value ?: @""];
+    resolve(nil);
+  }];
 }
 
 - (void)vodPlayerSelectSubtitle:(double)viewTag
@@ -330,12 +379,14 @@
   if (!view) {
     return;
   }
-  if ([view.vodController respondsToSelector:@selector(selectSubtitleTrack:)]) {
-    [view.vodController selectSubtitleTrack:(NSInteger)trackIndex];
-    resolve(nil);
-    return;
-  }
-  reject(@"E_SUBTITLE_UNSUPPORTED", @"Subtitle selection is not supported on this platform", nil);
+  [self runOnMain:^{
+    if ([view.vodController respondsToSelector:@selector(selectSubtitleTrack:)]) {
+      [view.vodController selectSubtitleTrack:(NSInteger)trackIndex];
+      resolve(nil);
+      return;
+    }
+    reject(@"E_SUBTITLE_UNSUPPORTED", @"Subtitle selection is not supported on this platform", nil);
+  }];
 }
 
 - (void)vodPlayerGetDuration:(double)viewTag
@@ -345,7 +396,9 @@
   if (!view) {
     return;
   }
-  resolve([view.vodController duration]);
+  [self runOnMain:^{
+    resolve([view.vodController duration]);
+  }];
 }
 
 - (void)vodPlayerGetCurrentPlayTime:(double)viewTag
@@ -355,7 +408,9 @@
   if (!view) {
     return;
   }
-  resolve([view.vodController currentPlayTime]);
+  [self runOnMain:^{
+    resolve([view.vodController currentPlayTime]);
+  }];
 }
 
 - (void)vodPlayerIsPlaying:(double)viewTag
@@ -365,7 +420,9 @@
   if (!view) {
     return;
   }
-  resolve([view.vodController isPlaying]);
+  [self runOnMain:^{
+    resolve([view.vodController isPlaying]);
+  }];
 }
 
 - (void)vodPlayerRelease:(double)viewTag
@@ -375,8 +432,10 @@
   if (!view) {
     return;
   }
-  [view.vodController releasePlayer];
-  resolve(nil);
+  [self runOnMain:^{
+    [view.vodController releasePlayer];
+    resolve(nil);
+  }];
 }
 
 - (void)addListener:(NSString *)event {

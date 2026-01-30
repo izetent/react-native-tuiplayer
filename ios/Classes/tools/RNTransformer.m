@@ -17,7 +17,7 @@
   TUIPlayerVideoModel *model = [[TUIPlayerVideoModel alloc] init];
   NSString *videoURL = dict[@"videoURL"];
   if (videoURL.length > 0) {
-    model.videoURL = videoURL;
+    model.videoUrl = videoURL;
   }
   NSNumber *appId = dict[@"appId"];
   if (appId != nil) {
@@ -36,10 +36,53 @@
     model.coverPictureUrl = cover;
   }
   NSNumber *autoPlay = dict[@"isAutoPlay"];
-  model.autoPlay = autoPlay != nil ? autoPlay.boolValue : YES;
-  NSDictionary *extInfo = dict[@"extInfo"];
+  BOOL hasAutoPlay = [autoPlay isKindOfClass:[NSNumber class]];
+  BOOL isAutoPlay = hasAutoPlay ? autoPlay.boolValue : YES;
+  id extInfo = dict[@"extInfo"];
+  if (extInfo == [NSNull null]) {
+    extInfo = nil;
+  }
   if ([extInfo isKindOfClass:[NSDictionary class]]) {
+    NSMutableDictionary *merged = [((NSDictionary *)extInfo) mutableCopy];
+    if (hasAutoPlay) {
+      merged[@"isAutoPlay"] = @(isAutoPlay);
+    }
+    model.extInfo = [merged copy];
+    [model extInfoChangeNotify];
+  } else if (extInfo != nil) {
     model.extInfo = extInfo;
+    [model extInfoChangeNotify];
+  } else if (hasAutoPlay) {
+    model.extInfo = @{@"isAutoPlay" : @(isAutoPlay)};
+    [model extInfoChangeNotify];
+  }
+  NSArray *subtitleSources = dict[@"subtitleSources"];
+  if ([subtitleSources isKindOfClass:[NSArray class]] && subtitleSources.count > 0) {
+    NSMutableArray<TUIPlayerSubtitleModel *> *subtitles = [NSMutableArray array];
+    for (id entry in subtitleSources) {
+      if (![entry isKindOfClass:[NSDictionary class]]) {
+        continue;
+      }
+      NSString *url = ((NSDictionary *)entry)[@"url"];
+      if (url.length == 0) {
+        continue;
+      }
+      TUIPlayerSubtitleModel *subtitle = [[TUIPlayerSubtitleModel alloc] init];
+      subtitle.url = url;
+      NSString *name = ((NSDictionary *)entry)[@"name"];
+      if (name.length > 0) {
+        subtitle.name = name;
+      }
+      NSString *mimeType = ((NSDictionary *)entry)[@"mimeType"];
+      NSString *lowerMime = [mimeType.lowercaseString stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+      subtitle.mimeType = [lowerMime containsString:@"vtt"]
+                              ? TUI_VOD_PLAYER_MIMETYPE_TEXT_VTT
+                              : TUI_VOD_PLAYER_MIMETYPE_TEXT_SRT;
+      [subtitles addObject:subtitle];
+    }
+    if (subtitles.count > 0) {
+      model.subtitles = subtitles;
+    }
   }
   return model;
 }
@@ -48,7 +91,7 @@
   TUIPlayerVodStrategyModel *strategy = [[TUIPlayerVodStrategyModel alloc] init];
   NSNumber *preloadCount = dict[@"preloadCount"];
   if (preloadCount) {
-    strategy.preloadCount = preloadCount.intValue;
+    strategy.mPreloadConcurrentCount = preloadCount.intValue;
   }
   NSNumber *downloadSize = dict[@"preDownloadSize"];
   if (downloadSize) {
@@ -56,7 +99,7 @@
   }
   NSNumber *preloadBufferSize = dict[@"preloadBufferSizeInMB"];
   if (preloadBufferSize) {
-    strategy.preloadBufferSizeInMB = preloadBufferSize.doubleValue;
+    strategy.mPreloadBufferSizeInMB = preloadBufferSize.doubleValue;
   }
   NSNumber *maxBuffer = dict[@"maxBufferSize"];
   if (maxBuffer) {
@@ -64,18 +107,18 @@
   }
   NSNumber *preferredResolution = dict[@"preferredResolution"];
   if (preferredResolution) {
-    strategy.preferredResolution = preferredResolution.integerValue;
+    strategy.mPreferredResolution = preferredResolution.integerValue;
   }
   NSNumber *progressInterval = dict[@"progressInterval"];
   if (progressInterval) {
-    strategy.progressInterval = progressInterval.intValue;
+    strategy.mProgressInterval = progressInterval.intValue;
   }
   NSNumber *renderMode = dict[@"renderMode"];
   if (renderMode) {
-    strategy.renderMode = renderMode.integerValue;
+    strategy.mRenderMode = (TUI_Enum_Type_RenderMode)renderMode.integerValue;
   }
   // Super resolution disabled for now to avoid TSR dependency.
-  strategy.enableSuperResolution = NO;
+  strategy.superResolutionType = 0;
   return strategy;
 }
 

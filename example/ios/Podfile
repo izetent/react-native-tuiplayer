@@ -1,6 +1,6 @@
 source 'https://github.com/CocoaPods/Specs.git'
-# Tencent Cloud private specs (LiteAV / TUIPlayer)
-source 'https://mirrors.tencent.com/ios/Pods/Specs.git'
+# Tencent Cloud private specs (LiteAV / TUIPlayer); enable with USE_TENCENT_PODS=1.
+source 'https://mirrors.tencent.com/ios/Pods/Specs.git' if ENV['USE_TENCENT_PODS'] == '1'
 # Fallback if mirror is blocked:
 # source 'https://github.com/tencentyun/ios-pods-tencent.git'
 
